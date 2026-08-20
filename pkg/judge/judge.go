@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -14,6 +15,80 @@ import (
 
 	"goproxy/pkg/model"
 )
+
+var (
+	cachedPublicIP string
+	publicIPOnce   sync.Once
+)
+
+// GetHostPublicIP tự động lấy địa chỉ IP Public của máy chủ hiện tại
+func GetHostPublicIP() string {
+	publicIPOnce.Do(func() {
+		discoveryEndpoints := []string{
+			"http://api.ipify.org",
+			"http://icanhazip.com",
+			"http://checkip.amazonaws.com",
+			"http://ifconfig.me/ip",
+		}
+		client := &http.Client{Timeout: 3 * time.Second}
+		for _, ep := range discoveryEndpoints {
+			resp, err := client.Get(ep)
+			if err == nil && resp.StatusCode == 200 {
+				body, err := io.ReadAll(io.LimitReader(resp.Body, 64))
+				_ = resp.Body.Close()
+				if err == nil {
+					ipStr := strings.TrimSpace(string(body))
+					if parsed := net.ParseIP(ipStr); parsed != nil {
+						cachedPublicIP = ipStr
+						return
+					}
+				}
+			}
+		}
+
+		// Fallback nếu không có internet: thử lấy IP từ network interface
+		if addrs, err := net.InterfaceAddrs(); err == nil {
+			for _, addr := range addrs {
+				if ipNet, ok := addr.(*net.IPNet); ok && !ipNet.IP.IsLoopback() {
+					if ipNet.IP.To4() != nil {
+						cachedPublicIP = ipNet.IP.String()
+						return
+					}
+				}
+			}
+		}
+
+		cachedPublicIP = "127.0.0.1"
+	})
+	return cachedPublicIP
+}
+
+// ResolveJudgeURL tự động chuyển đổi path tương đối (/json, /judge, /ip) hoặc template {MY_IP} thành URL đầy đủ với IP/Port thật
+func ResolveJudgeURL(rawURL string, serverPort string) string {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return ""
+	}
+
+	port := strings.TrimPrefix(serverPort, ":")
+	if port == "" {
+		port = "8080"
+	}
+
+	publicIP := GetHostPublicIP()
+
+	// Nếu cấu hình chỉ để path như: "/json", "/judge", "/ip"
+	if strings.HasPrefix(rawURL, "/") {
+		return fmt.Sprintf("http://%s:%s%s", publicIP, port, rawURL)
+	}
+
+	// Nếu cấu hình chứa placeholder {MY_IP} hoặc {PORT}
+	rawURL = strings.ReplaceAll(rawURL, "{MY_IP}", publicIP)
+	rawURL = strings.ReplaceAll(rawURL, "{HOST}", publicIP)
+	rawURL = strings.ReplaceAll(rawURL, "{PORT}", port)
+
+	return rawURL
+}
 
 // judgeEntry tracks the health and latency of a single judge URL
 type judgeEntry struct {
@@ -31,19 +106,27 @@ type Evaluator struct {
 	httpClient *http.Client
 }
 
-// NewEvaluator creates a new Evaluator with judge pool health checking
+// NewEvaluator creates a new Evaluator with dynamic judge URL resolution
 func NewEvaluator(judges []string, customJudge string) *Evaluator {
 	list := []string{}
 	if customJudge != "" {
-		list = append(list, customJudge)
+		resolved := ResolveJudgeURL(customJudge, "8080")
+		if resolved != "" {
+			list = append(list, resolved)
+		}
 	}
 	if len(judges) > 0 {
-		list = append(list, judges...)
+		for _, u := range judges {
+			resolved := ResolveJudgeURL(u, "8080")
+			if resolved != "" {
+				list = append(list, resolved)
+			}
+		}
 	} else {
 		list = []string{
-			"http://103.77.246.161:8080/json",
-			"http://103.77.246.161:8080/judge",
-			"http://103.77.246.161:8080/ip",
+			ResolveJudgeURL("/json", "8080"),
+			ResolveJudgeURL("/judge", "8080"),
+			ResolveJudgeURL("/ip", "8080"),
 		}
 	}
 
@@ -135,7 +218,7 @@ func (e *Evaluator) PickJudge() string {
 	if len(e.judges) > 0 {
 		return e.judges[0].url
 	}
-	return "http://103.77.246.161:8080/json"
+	return ResolveJudgeURL("/json", "8080")
 }
 
 // GetMyPublicIP fetches the host's actual public IP to detect transparent proxies
