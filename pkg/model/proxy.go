@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 )
@@ -94,6 +95,24 @@ type CheckResult struct {
 	ASN         string        `json:"asn"`
 	Org         string        `json:"org"`
 	JudgeCount  int           `json:"judge_count"` // How many judges confirmed
-	Error       error         `json:"error,omitempty"`
+	Error       error         `json:"-"`
+	ErrorMsg    string        `json:"error,omitempty"`
 	Success     bool          `json:"success"`
+}
+
+// MarshalJSON formats CheckResult with a readable error string
+func (r CheckResult) MarshalJSON() ([]byte, error) {
+	type Alias CheckResult
+	aux := struct {
+		Alias
+		ErrorMsg string `json:"error,omitempty"`
+	}{
+		Alias: Alias(r),
+	}
+	if r.Error != nil {
+		aux.ErrorMsg = r.Error.Error()
+	} else if r.ErrorMsg != "" {
+		aux.ErrorMsg = r.ErrorMsg
+	}
+	return json.Marshal(aux)
 }

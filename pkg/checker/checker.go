@@ -36,12 +36,18 @@ func NewChecker(cfg *model.Config) *Checker {
 
 // CheckIPPort verifies a single IP and Port through all validation stages
 func (c *Checker) CheckIPPort(ctx context.Context, ip string, port int, proto model.Protocol) *model.CheckResult {
+	loc := c.geoip.Lookup(ip)
 	result := &model.CheckResult{
-		IP:        ip,
-		Port:      port,
-		Protocol:  proto,
-		Anonymity: model.AnonUnknown,
-		Success:   false,
+		IP:          ip,
+		Port:        port,
+		Protocol:    proto,
+		Anonymity:   model.AnonUnknown,
+		Country:     loc.Country,
+		CountryCode: loc.CountryCode,
+		City:        loc.City,
+		ASN:         loc.ASN,
+		Org:         loc.Org,
+		Success:     false,
 	}
 
 	addr := net.JoinHostPort(ip, strconv.Itoa(port))
@@ -139,14 +145,6 @@ func (c *Checker) CheckIPPort(ctx context.Context, ip string, port int, proto mo
 	result.LatencyMs = latency.Milliseconds()
 	result.Success = true
 	result.JudgeCount = 1
-
-	// Stage 3: Fast GeoIP & ASN Resolution (batched, cached)
-	loc := c.geoip.Lookup(ip)
-	result.Country = loc.Country
-	result.CountryCode = loc.CountryCode
-	result.City = loc.City
-	result.ASN = loc.ASN
-	result.Org = loc.Org
 
 	return result
 }
