@@ -11,6 +11,7 @@ engine:
   rate_limit: 0                # Maximum requests per second (0 = unlimited)
   max_retries: 1               # Number of retries on network error
   auto_port: 8080              # Default port when input lines are single IP addresses
+  loop: false                  # Tự động lặp lại quét từ đầu khi hết danh sách IP (--loop / --retry)
 
 # Protocol probing settings
 protocol:

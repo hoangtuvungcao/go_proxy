@@ -22,6 +22,7 @@ type EngineConfig struct {
 	RateLimit        int           `yaml:"rate_limit" json:"rate_limit"`               // Max checks per second (0 = unlimited)
 	MaxRetries       int           `yaml:"max_retries" json:"max_retries"`             // Retries before marking dead
 	AutoPort         int           `yaml:"auto_port" json:"auto_port"`                 // Default port if input is only IP
+	Loop             bool          `yaml:"loop" json:"loop"`                           // Loop input file/targets continuously
 }
 
 // ProtocolConfig configures protocol probing behavior

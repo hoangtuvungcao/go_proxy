@@ -27,6 +27,8 @@ var (
 	noDBFlag     bool
 	serveWithAPI bool
 	apiPortFlag  string
+	loopFlag     bool
+	retryFlag    bool
 )
 
 var checkCmd = &cobra.Command{
@@ -64,6 +66,8 @@ func init() {
 	checkCmd.Flags().BoolVar(&noDBFlag, "no-db", false, "Disable SQLite database saving")
 	checkCmd.Flags().BoolVar(&serveWithAPI, "serve", false, "Start REST API & Web Dashboard in background during scan")
 	checkCmd.Flags().StringVar(&apiPortFlag, "api-port", ":8080", "Address/port for background API server")
+	checkCmd.Flags().BoolVarP(&loopFlag, "loop", "l", false, "Chế độ vòng lặp vô tận: tự động quét lại từ đầu khi hết danh sách IP")
+	checkCmd.Flags().BoolVarP(&retryFlag, "retry", "r", false, "Tương đương --loop: tự động quét lại vòng lặp")
 }
 
 func runCheck(cmd *cobra.Command, args []string) {
@@ -94,6 +98,9 @@ func runCheck(cmd *cobra.Command, args []string) {
 			cfg.Protocol.AutoDetect = false
 		}
 	}
+	if cmd.Flags().Changed("loop") || cmd.Flags().Changed("retry") {
+		cfg.Engine.Loop = loopFlag || retryFlag
+	}
 
 	// Setup SQLite
 	var store *storage.SQLiteStore
@@ -115,16 +122,7 @@ func runCheck(cmd *cobra.Command, args []string) {
 	}
 	defer exporter.Close()
 
-	// Determine input stream
-	var inputReader io.Reader
 	if fileFlag != "" {
-		f, err := os.Open(fileFlag)
-		if err != nil {
-			color.New(color.FgRed).Printf("[-] Failed to open input file %s: %v\n", fileFlag, err)
-			os.Exit(1)
-		}
-		defer f.Close()
-		inputReader = f
 		color.New(color.FgHiCyan).Printf("[*] Ingesting targets from file: %s\n", fileFlag)
 	} else {
 		// Check if stdin has data
@@ -134,7 +132,6 @@ func runCheck(cmd *cobra.Command, args []string) {
 		} else {
 			color.New(color.FgHiCyan).Println("[*] Streaming targets from STDIN (ZMap pipe)...")
 		}
-		inputReader = os.Stdin
 	}
 
 	// Protocol selection
@@ -188,12 +185,53 @@ func runCheck(cmd *cobra.Command, args []string) {
 	}
 
 	color.New(color.FgHiGreen, color.Bold).Printf("[*] Worker pool started with %d workers | Port: %d | Protocol: %s\n", cfg.Engine.Workers, portFlag, protoFlag)
+	if cfg.Engine.Loop {
+		color.New(color.FgHiYellow, color.Bold).Println("[*] Chế độ vòng lặp vô tận (--loop/--retry) ĐÃ BẬT: Sẽ tự động quét lại khi hết danh sách!")
+	}
 	startTime := time.Now()
 
 	// Ingest stream in goroutine so cancellation doesn't block on stdin read
 	ingestDone := make(chan error, 1)
 	go func() {
-		ingestDone <- p.IngestFromReader(inputReader, portFlag, selectedProto)
+		loopCount := 1
+		for {
+			var reader io.Reader = os.Stdin
+			var f *os.File
+			if fileFlag != "" {
+				var errOpen error
+				f, errOpen = os.Open(fileFlag)
+				if errOpen != nil {
+					ingestDone <- errOpen
+					return
+				}
+				reader = f
+			}
+
+			errIngest := p.IngestFromReader(reader, portFlag, selectedProto)
+			if f != nil {
+				_ = f.Close()
+			}
+
+			if errIngest != nil && errIngest != io.EOF && errIngest != context.Canceled {
+				ingestDone <- errIngest
+				return
+			}
+
+			// Nếu không bật chế độ vòng lặp hoặc đọc từ STDIN, kết thúc chu kỳ
+			if !cfg.Engine.Loop || fileFlag == "" {
+				ingestDone <- nil
+				return
+			}
+
+			loopCount++
+			color.New(color.FgHiYellow, color.Bold).Printf("\n[*] Đã hoàn tất danh sách %s! Bắt đầu vòng lặp quét lại lần %d (--loop)...\n", fileFlag, loopCount)
+			select {
+			case <-ctx.Done():
+				ingestDone <- nil
+				return
+			case <-time.After(2 * time.Second):
+			}
+		}
 	}()
 
 	select {
