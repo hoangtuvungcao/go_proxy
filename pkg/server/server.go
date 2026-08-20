@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -58,6 +59,12 @@ func NewAPIServer(addr string, store *storage.SQLiteStore, stats *model.Stats) *
 	go api.broadcastLoop()
 
 	mux := http.NewServeMux()
+	// Built-in high-performance Judge endpoints
+	mux.HandleFunc("/json", api.handleJudgeJSON)
+	mux.HandleFunc("/ip", api.handleJudgeIP)
+	mux.HandleFunc("/judge", api.handleJudgeJSON)
+	mux.HandleFunc("/azenv", api.handleJudgeAZENV)
+
 	mux.HandleFunc("/api/v1/proxies", api.handleProxies)
 	mux.HandleFunc("/api/v1/random", api.handleRandom)
 	mux.HandleFunc("/api/v1/stats", api.handleStats)
@@ -461,4 +468,60 @@ func (s *APIServer) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	_, _ = w.Write([]byte(dashboardHTML))
+}
+
+// handleJudgeJSON trả về JSON IP echo và toàn bộ headers để kiểm tra tính ẩn danh
+func (s *APIServer) handleJudgeJSON(w http.ResponseWriter, r *http.Request) {
+	clientIP, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		clientIP = r.RemoteAddr
+	}
+
+	headers := make(map[string]string)
+	for k, v := range r.Header {
+		if len(v) > 0 {
+			headers[k] = v[0]
+		}
+	}
+
+	resp := map[string]interface{}{
+		"ip":        clientIP,
+		"origin":    clientIP,
+		"headers":   headers,
+		"timestamp": time.Now().Unix(),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// handleJudgeIP trả về địa chỉ IP thực tế dạng plain text
+func (s *APIServer) handleJudgeIP(w http.ResponseWriter, r *http.Request) {
+	clientIP, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		clientIP = r.RemoteAddr
+	}
+	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	_, _ = w.Write([]byte(clientIP + "\n"))
+}
+
+// handleJudgeAZENV trả về định dạng AZENV tiêu chuẩn (REMOTE_ADDR, HTTP_VIA, v.v.)
+func (s *APIServer) handleJudgeAZENV(w http.ResponseWriter, r *http.Request) {
+	clientIP, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		clientIP = r.RemoteAddr
+	}
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("REMOTE_ADDR = %s\n", clientIP))
+	for k, v := range r.Header {
+		if len(v) > 0 {
+			envKey := "HTTP_" + strings.ToUpper(strings.ReplaceAll(k, "-", "_"))
+			sb.WriteString(fmt.Sprintf("%s = %s\n", envKey, v[0]))
+		}
+	}
+	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	_, _ = w.Write([]byte(sb.String()))
 }
