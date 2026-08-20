@@ -3,11 +3,17 @@ package geoip
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/fatih/color"
+	"github.com/oschwald/geoip2-golang"
 )
 
 // LocationInfo holds IP geo data
@@ -19,18 +25,16 @@ type LocationInfo struct {
 	Org         string `json:"org"`
 }
 
-// Resolver handles fast GeoIP resolution with embedded CIDR heuristics,
-// /24 subnet-level caching, multi-provider failover, and rate-limit mitigation.
+// Resolver handles fast GeoIP resolution with local MaxMind MMDB,
+// embedded CIDR heuristics, /24 subnet-level caching, and multi-provider failover.
 type Resolver struct {
-	// L1: IP exact cache (/32)
-	cache sync.Map
-	// L2: Subnet cache (/24)
+	mmdbReader  *geoip2.Reader
+	mmdbMu      sync.RWMutex
+	cache       sync.Map
 	subnetCache sync.Map
 	httpClient  *http.Client
 	enabled     bool
-
-	// Batch request channel
-	batchCh chan batchReq
+	batchCh     chan batchReq
 }
 
 type batchReq struct {
@@ -54,16 +58,93 @@ func NewResolver(enabled bool) *Resolver {
 		},
 	}
 	if enabled {
+		r.initMMDB()
 		go r.batchWorker()
 	}
 	return r
 }
 
-// Lookup resolves IP location through 4 fast tiers:
+func (r *Resolver) initMMDB() {
+	candidates := []string{
+		"configs/GeoLite2-Country.mmdb",
+		"../configs/GeoLite2-Country.mmdb",
+		"../../configs/GeoLite2-Country.mmdb",
+		"/root/scan_proxy/configs/GeoLite2-Country.mmdb",
+		"GeoLite2-Country.mmdb",
+		"configs/GeoLite2-City.mmdb",
+		"../configs/GeoLite2-City.mmdb",
+		"../../configs/GeoLite2-City.mmdb",
+		"/root/scan_proxy/configs/GeoLite2-City.mmdb",
+		"GeoLite2-City.mmdb",
+	}
+
+	if execPath, err := os.Executable(); err == nil {
+		execDir := filepath.Dir(execPath)
+		candidates = append(candidates,
+			filepath.Join(execDir, "configs", "GeoLite2-Country.mmdb"),
+			filepath.Join(execDir, "GeoLite2-Country.mmdb"),
+			filepath.Join(execDir, "configs", "GeoLite2-City.mmdb"),
+			filepath.Join(execDir, "GeoLite2-City.mmdb"),
+		)
+	}
+
+	for _, p := range candidates {
+		if db, err := geoip2.Open(p); err == nil {
+			r.mmdbMu.Lock()
+			r.mmdbReader = db
+			r.mmdbMu.Unlock()
+			color.New(color.FgHiGreen).Printf("[*] GeoIP: Đã nạp Offline Database (%s) - 0ms lookup / 0%% Rate Limit\n", p)
+			return
+		}
+	}
+
+	// Auto-download in background if missing
+	go r.autoDownloadMMDB()
+}
+
+func (r *Resolver) autoDownloadMMDB() {
+	targetDir := "configs"
+	_ = os.MkdirAll(targetDir, 0755)
+	targetFile := filepath.Join(targetDir, "GeoLite2-Country.mmdb")
+
+	downloadURL := "https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-Country.mmdb"
+	req, err := http.NewRequest("GET", downloadURL, nil)
+	if err != nil {
+		return
+	}
+	req.Header.Set("User-Agent", "GoProxy/2.0")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		return
+	}
+	defer resp.Body.Close()
+
+	tmpFile := targetFile + ".tmp"
+	out, err := os.Create(tmpFile)
+	if err != nil {
+		return
+	}
+	_, err = io.Copy(out, resp.Body)
+	_ = out.Close()
+	if err == nil {
+		_ = os.Rename(tmpFile, targetFile)
+		if db, err := geoip2.Open(targetFile); err == nil {
+			r.mmdbMu.Lock()
+			r.mmdbReader = db
+			r.mmdbMu.Unlock()
+			color.New(color.FgHiGreen).Printf("[*] GeoIP: Đã tải và nạp thành công Offline Database (%s)\n", targetFile)
+		}
+	}
+}
+
+// Lookup resolves IP location through 5 fast tiers:
 // Tier 0: Special/Private IP classification (0ms)
-// Tier 1: Embedded Major Country & Vietnam CIDR table (0ms)
+// Tier 1: Local MaxMind MMDB Offline Engine (0.0001ms) - 100% no rate limit
 // Tier 2: /24 Subnet Cache & Exact /32 Cache (0ms)
-// Tier 3: Batch API with multi-provider fallback
+// Tier 3: Embedded Major Country & Vietnam CIDR table (0ms)
+// Tier 4: Batch API with multi-provider fallback
 func (r *Resolver) Lookup(ipStr string) LocationInfo {
 	if !r.enabled || ipStr == "" {
 		return LocationInfo{Country: "Unknown", CountryCode: "XX"}
@@ -84,8 +165,32 @@ func (r *Resolver) Lookup(ipStr string) LocationInfo {
 		return val.(LocationInfo)
 	}
 
-	// Tier 2b: /24 Subnet cache hit (e.g. 103.17.140.x)
 	subnetKey := getSubnet24(ipStr)
+
+	// Tier 1: Local MaxMind MMDB Offline Engine (Instant 0ms, Zero Rate Limit)
+	r.mmdbMu.RLock()
+	reader := r.mmdbReader
+	r.mmdbMu.RUnlock()
+	if reader != nil {
+		record, err := reader.Country(ip)
+		if err == nil && record.Country.IsoCode != "" {
+			countryName := record.Country.Names["en"]
+			if countryName == "" {
+				countryName = record.Country.IsoCode
+			}
+			info := LocationInfo{
+				Country:     countryName,
+				CountryCode: record.Country.IsoCode,
+			}
+			r.cache.Store(ipStr, info)
+			if subnetKey != "" {
+				r.subnetCache.Store(subnetKey, info)
+			}
+			return info
+		}
+	}
+
+	// Tier 2b: /24 Subnet cache hit (e.g. 103.17.140.x)
 	if subnetKey != "" {
 		if val, ok := r.subnetCache.Load(subnetKey); ok {
 			info := val.(LocationInfo)
@@ -94,7 +199,7 @@ func (r *Resolver) Lookup(ipStr string) LocationInfo {
 		}
 	}
 
-	// Tier 1: Embedded offline heuristics for high-density CIDRs (Vietnam & Major Asia/US)
+	// Tier 3: Embedded offline heuristics for high-density CIDRs (Vietnam & Major Asia/US)
 	if info, ok := matchEmbeddedCIDR(ip); ok {
 		r.cache.Store(ipStr, info)
 		if subnetKey != "" {
@@ -103,19 +208,17 @@ func (r *Resolver) Lookup(ipStr string) LocationInfo {
 		return info
 	}
 
-	// Tier 3: Send to batch worker with 1.5s timeout
+	// Tier 4: Send to batch worker with 1s timeout
 	respCh := make(chan LocationInfo, 1)
 	select {
 	case r.batchCh <- batchReq{ip: ipStr, respCh: respCh}:
 		select {
 		case info := <-respCh:
 			return info
-		case <-time.After(1500 * time.Millisecond):
-			// If timed out, try secondary fallback provider directly
+		case <-time.After(1000 * time.Millisecond):
 			return r.fallbackProvider(ipStr)
 		}
 	default:
-		// Queue full -> direct fallback
 		return r.fallbackProvider(ipStr)
 	}
 }
@@ -168,11 +271,9 @@ func (r *Resolver) batchWorker() {
 			}
 			info, ok := results[p.req.ip]
 			if !ok || info.CountryCode == "" || info.CountryCode == "XX" {
-				// Try secondary fallback provider
 				info = r.fallbackProvider(p.req.ip)
 			}
 
-			// Store in /32 and /24 cache
 			r.cache.Store(p.req.ip, info)
 			if sk := getSubnet24(p.req.ip); sk != "" && info.CountryCode != "XX" {
 				r.subnetCache.Store(sk, info)
@@ -266,7 +367,7 @@ func (r *Resolver) fetchBatch(ips []string) map[string]LocationInfo {
 	return results
 }
 
-// fallbackProvider queries backup GeoIP services (ipwho.is / freeipapi)
+// fallbackProvider queries backup GeoIP services
 func (r *Resolver) fallbackProvider(ip string) LocationInfo {
 	// Try ipwho.is (free, generous rate limit, no key required)
 	url := fmt.Sprintf("https://ipwho.is/%s", ip)
@@ -334,22 +435,6 @@ func matchEmbeddedCIDR(ip net.IP) (LocationInfo, bool) {
 
 	b0, b1 := ip4[0], ip4[1]
 
-	// Vietnam major ISP blocks:
-	// 14.160.0.0/11 (14.160 - 14.191) - VNPT
-	// 14.224.0.0/11 (14.224 - 14.255) - VNPT
-	// 27.64.0.0/11  (27.64  - 27.95)  - Viettel
-	// 42.112.0.0/13 (42.112 - 42.119) - FPT
-	// 58.186.0.0/15 (58.186 - 58.187) - FPT
-	// 103.0.0.0/8   (103.x.x.x VN ranges: 103.1 - 103.255)
-	// 113.160.0.0/11 (113.160 - 113.191) - VNPT
-	// 115.72.0.0/13  (115.72 - 115.79) - VNPT
-	// 116.96.0.0/12  (116.96 - 116.111) - Viettel
-	// 117.0.0.0/13   (117.0 - 117.7) - Viettel
-	// 118.68.0.0/14  (118.68 - 118.71) - FPT
-	// 123.16.0.0/12  (123.16 - 123.31) - VNPT
-	// 125.234.0.0/15 (125.234 - 125.235) - Viettel
-	// 171.224.0.0/11 (171.224 - 171.255) - Viettel
-	// 222.252.0.0/14 (222.252 - 222.255) - VNPT
 	if (b0 == 14 && (b1 >= 160 && b1 <= 255)) ||
 		(b0 == 27 && (b1 >= 64 && b1 <= 95)) ||
 		(b0 == 42 && (b1 >= 112 && b1 <= 119)) ||
