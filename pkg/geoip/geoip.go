@@ -25,6 +25,10 @@ type LocationInfo struct {
 	Org         string `json:"org"`
 }
 
+var (
+	mmdbInitOnce sync.Once
+)
+
 // Resolver handles fast GeoIP resolution with local MaxMind MMDB,
 // embedded CIDR heuristics, /24 subnet-level caching, and multi-provider failover.
 type Resolver struct {
@@ -93,7 +97,9 @@ func (r *Resolver) initMMDB() {
 			r.mmdbMu.Lock()
 			r.mmdbReader = db
 			r.mmdbMu.Unlock()
-			color.New(color.FgHiGreen).Printf("[*] GeoIP: Đã nạp Offline Database (%s) - 0ms lookup / 0%% Rate Limit\n", p)
+			mmdbInitOnce.Do(func() {
+				color.New(color.FgHiGreen).Printf("[*] GeoIP: Đã nạp Offline Database (%s) - 0ms lookup / 0%% Rate Limit\n", p)
+			})
 			return
 		}
 	}
