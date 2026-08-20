@@ -132,79 +132,98 @@ func CheckHTTP(ctx context.Context, proxyAddr string, judgeURL string, timeout t
 	return latency, body, resp.Header, nil
 }
 
-// validateJudgeResponse kiểm tra xem response có phải từ judge thật không.
-// Ưu tiên: phân tích JSON IP > marker check > nghi ngờ HTML.
+// validateJudgeResponse xác thực nghiêm ngặt phản hồi từ Judge.
+// CHỈ CHẤP NHẬN nếu Judge trả về địa chỉ IP thực tế (JSON IP echo hoặc plain text IP hoặc AZENV).
+// Toàn bộ các trang web thông thường, Router MikroTik/TP-Link, 404/Login page đều bị loại bỏ 100%.
 func validateJudgeResponse(headers http.Header, body []byte) error {
-	// Lớp 1: Body rỗng → reject
-	if len(body) == 0 {
-		return fmt.Errorf("false positive: body rỗng")
+	trimmed := bytes.TrimSpace(body)
+	if len(trimmed) < 4 {
+		return fmt.Errorf("false positive: body quá ngắn (%d bytes)", len(trimmed))
 	}
 
-	// Lớp 2: Body quá nhỏ (< 5 byte) → reject
-	if len(body) < 5 {
-		return fmt.Errorf("false positive: body quá ngắn (%d byte)", len(body))
+	lowerBody := bytes.ToLower(trimmed)
+
+	// Lớp 1: Nếu là HTML thông thường (trang web, router, login portal) -> Loại bỏ ngay trừ khi là AZENV
+	if bytes.HasPrefix(lowerBody, []byte("<!doctype")) ||
+		bytes.HasPrefix(lowerBody, []byte("<html")) ||
+		bytes.HasPrefix(lowerBody, []byte("<head")) ||
+		bytes.HasPrefix(lowerBody, []byte("<body")) ||
+		bytes.Contains(lowerBody, []byte("<title>")) ||
+		bytes.Contains(lowerBody, []byte("<script")) {
+
+		// Chỉ chấp nhận nếu HTML đó thực chất là trang AZENV có chứa REMOTE_ADDR = <ip_hợp_lệ>
+		if ip := extractAzenvIP(trimmed); ip != "" {
+			return nil
+		}
+		return fmt.Errorf("false positive: phát hiện trang web HTML / Router thay vì proxy thật")
 	}
 
-	contentType := strings.ToLower(headers.Get("Content-Type"))
-
-	// Lớp 3: Nếu là JSON → thử parse và xác minh IP echo (bằng chứng chính)
-	if strings.Contains(contentType, "application/json") || (len(body) > 0 && body[0] == '{') {
+	// Lớp 2: Thử parse JSON chứa trường "ip" hoặc "origin" (chuẩn httpbin, ipify, ifconfig.co, v.v.)
+	if trimmed[0] == '{' {
 		var jr judgeResponse
-		if err := json.Unmarshal(body, &jr); err == nil {
+		if err := json.Unmarshal(trimmed, &jr); err == nil {
 			ip := jr.IP
 			if ip == "" {
 				ip = jr.Origin
-				// origin có thể là "1.2.3.4, 5.6.7.8" (multi-hop)
 				if idx := strings.Index(ip, ","); idx > 0 {
 					ip = strings.TrimSpace(ip[:idx])
 				}
 			}
+			ip = strings.TrimSpace(ip)
 			if ip != "" && net.ParseIP(ip) != nil {
-				// ✅ JSON hợp lệ và chứa IP thật → đây là judge response chính xác
+				// ✅ JSON chứa IP echo hợp lệ
 				return nil
 			}
 		}
-	}
 
-	// Lớp 4: Nếu là plain text → thử parse IP trực tiếp (ifconfig.me style)
-	if strings.Contains(contentType, "text/plain") {
-		trimmed := strings.TrimSpace(string(body))
-		if net.ParseIP(trimmed) != nil {
-			// ✅ Trả về đúng 1 địa chỉ IP → hợp lệ
-			return nil
-		}
-	}
-
-	// Lớp 5: HTML → kiểm tra có marker judge không (AZENV style)
-	if strings.Contains(contentType, "text/html") || bytes.Contains(body, []byte("<html")) {
-		hasJudgeMarker := false
-		for _, kw := range validJudgeMarkers {
-			if bytes.Contains(body, kw) {
-				hasJudgeMarker = true
-				break
+		// Thử generic JSON unmarshal nếu key khác
+		var genericMap map[string]interface{}
+		if err := json.Unmarshal(trimmed, &genericMap); err == nil {
+			for _, k := range []string{"ip", "origin", "query", "client_ip", "remote_addr"} {
+				if val, exists := genericMap[k]; exists {
+					if strVal, ok := val.(string); ok {
+						strVal = strings.TrimSpace(strVal)
+						if net.ParseIP(strVal) != nil {
+							return nil
+						}
+					}
+				}
 			}
 		}
-		if !hasJudgeMarker {
-			return fmt.Errorf("false positive: HTML không có judge marker")
-		}
-		// Kiểm tra thêm các dấu hiệu trang đáng ngờ (router/captive portal)
-		lbody := bytes.ToLower(body)
-		for _, marker := range suspiciousResponseMarkers {
-			if bytes.Contains(lbody, marker) {
-				return fmt.Errorf("false positive: phát hiện trang captive portal/router (%s)", marker)
-			}
-		}
+	}
+
+	// Lớp 3: Thử parse dạng plain text IP (chuẩn ifconfig.me/ip, icanhazip.com, api.ipify.org)
+	strBody := strings.Trim(string(trimmed), "\"'\r\n\t ")
+	if net.ParseIP(strBody) != nil {
+		// ✅ Trả về đúng 1 địa chỉ IP hợp lệ
 		return nil
 	}
 
-	// Lớp 6: Các content-type khác → dùng marker check cơ bản
-	for _, kw := range validJudgeMarkers {
-		if bytes.Contains(body, kw) {
-			return nil
-		}
+	// Lớp 4: Kiểm tra định dạng AZENV (REMOTE_ADDR = ...)
+	if ip := extractAzenvIP(trimmed); ip != "" {
+		return nil
 	}
 
-	return fmt.Errorf("false positive: response không nhận dạng được là judge hợp lệ")
+	return fmt.Errorf("false positive: phản hồi không chứa IP echo hợp lệ từ judge")
+}
+
+// extractAzenvIP trích xuất và xác thực IP từ dữ liệu AZENV
+func extractAzenvIP(body []byte) string {
+	lines := strings.Split(string(body), "\n")
+	for _, l := range lines {
+		l = strings.TrimSpace(l)
+		if strings.HasPrefix(l, "REMOTE_ADDR") || strings.HasPrefix(l, "HTTP_CLIENT_IP") {
+			parts := strings.SplitN(l, "=", 2)
+			if len(parts) == 2 {
+				ipStr := strings.TrimSpace(parts[1])
+				ipStr = strings.Trim(ipStr, "\"' \r\t")
+				if net.ParseIP(ipStr) != nil {
+					return ipStr
+				}
+			}
+		}
+	}
+	return ""
 }
 
 // CheckHTTPS xác minh HTTPS CONNECT tunnel với TLS handshake thực.
