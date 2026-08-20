@@ -148,7 +148,7 @@ func (e *Evaluator) GetMyPublicIP() string {
 			if atomic.LoadInt32(&j.healthy) == 0 {
 				continue
 			}
-		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 			req, err2 := http.NewRequestWithContext(ctx, "GET", j.url, nil)
 			if err2 != nil {
 				cancel()
