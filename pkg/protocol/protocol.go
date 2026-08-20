@@ -171,7 +171,7 @@ func validateJudgeResponse(headers http.Header, body []byte) error {
 			}
 			ip = strings.TrimSpace(ip)
 			if ip != "" && net.ParseIP(ip) != nil {
-				// ✅ JSON chứa IP echo hợp lệ
+				// JSON chứa IP echo hợp lệ
 				return nil
 			}
 		}
@@ -195,7 +195,7 @@ func validateJudgeResponse(headers http.Header, body []byte) error {
 	// Lớp 3: Thử parse dạng plain text IP (chuẩn ifconfig.me/ip, icanhazip.com, api.ipify.org)
 	strBody := strings.Trim(string(trimmed), "\"'\r\n\t ")
 	if net.ParseIP(strBody) != nil {
-		// ✅ Trả về đúng 1 địa chỉ IP hợp lệ
+		// Trả về đúng 1 địa chỉ IP hợp lệ
 		return nil
 	}
 

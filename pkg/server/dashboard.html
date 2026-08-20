@@ -468,51 +468,45 @@
     </div>
     <div class="header-actions">
       <div class="export-wrap">
-        <button class="btn btn-secondary" id="export-btn">⬇ Export</button>
+        <button class="btn btn-secondary" id="export-btn">Export</button>
         <div class="export-dropdown">
-          <div class="export-item" onclick="exportProxies('txt')">📄 Text (ip:port)</div>
-          <div class="export-item" onclick="exportProxies('csv')">📊 CSV Spreadsheet</div>
-          <div class="export-item" onclick="exportProxies('json')">{ } JSON</div>
+          <div class="export-item" onclick="exportProxies('txt')">Text (ip:port)</div>
+          <div class="export-item" onclick="exportProxies('csv')">CSV Spreadsheet</div>
+          <div class="export-item" onclick="exportProxies('json')">JSON</div>
         </div>
       </div>
-      <button class="btn btn-primary" onclick="loadProxies()">↺ Refresh</button>
+      <button class="btn btn-primary" onclick="loadProxies()">Refresh</button>
     </div>
   </header>
 
   <!-- Stat Cards -->
   <div class="stats-grid">
     <div class="stat-card c-alive">
-      <span class="stat-icon">🟢</span>
       <div class="stat-label">Alive in Pool</div>
       <div class="stat-value" id="s-alive">0</div>
       <div class="stat-sub" id="s-alive-rate">–</div>
     </div>
     <div class="stat-card c-scan">
-      <span class="stat-icon">🔍</span>
       <div class="stat-label">Total Scanned</div>
       <div class="stat-value" id="s-scanned">0</div>
       <div class="stat-sub" id="s-dead">0 dead</div>
     </div>
     <div class="stat-card c-speed">
-      <span class="stat-icon">⚡</span>
       <div class="stat-label">Scan Speed</div>
       <div class="stat-value" id="s-speed">0</div>
-      <div class="stat-sub">/second</div>
+      <div class="stat-sub">IPs / second</div>
     </div>
     <div class="stat-card c-elite">
-      <span class="stat-icon">🛡</span>
       <div class="stat-label">Elite Proxies</div>
       <div class="stat-value" id="s-elite">0</div>
       <div class="stat-sub" id="s-anon">0 anonymous</div>
     </div>
     <div class="stat-card c-http">
-      <span class="stat-icon">🌐</span>
       <div class="stat-label">HTTP / HTTPS</div>
       <div class="stat-value" id="s-http">0</div>
       <div class="stat-sub" id="s-https">0 https</div>
     </div>
     <div class="stat-card c-socks">
-      <span class="stat-icon">🔌</span>
       <div class="stat-label">SOCKS5 / SOCKS4</div>
       <div class="stat-value" id="s-socks5">0</div>
       <div class="stat-sub" id="s-socks4">0 socks4</div>
@@ -539,10 +533,10 @@
   <!-- Proxy Test Panel -->
   <p class="section-label">Proxy Tester</p>
   <div class="test-panel">
-    <h3>🔬 Live Proxy Verification</h3>
+    <h3>Live Proxy Verification</h3>
     <div class="test-row">
       <input type="text" class="test-input" id="test-proxy-input" placeholder="e.g. socks5://1.2.3.4:1080 or 1.2.3.4:8080" autocomplete="off">
-      <button class="btn btn-primary" id="test-btn" onclick="testProxy()">▶ Test Proxy</button>
+      <button class="btn btn-primary" id="test-btn" onclick="testProxy()">Test Proxy</button>
     </div>
     <div class="test-result" id="test-result"></div>
   </div>
@@ -595,15 +589,15 @@
         <option value="1000">1000</option>
       </select>
     </div>
-    <button class="btn btn-primary" onclick="loadProxies()">🔍 Filter</button>
-    <button class="btn btn-secondary" onclick="resetFilters()">✕ Reset</button>
+    <button class="btn btn-primary" onclick="loadProxies()">Filter</button>
+    <button class="btn btn-secondary" onclick="resetFilters()">Reset</button>
   </div>
 
   <!-- Proxy Table -->
   <div class="table-card">
     <div class="table-header">
       <div class="table-title">
-        📋 Proxy Pool
+        Proxy Pool
         <span class="table-count" id="tbl-count">0</span>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
@@ -616,13 +610,13 @@
       <table id="proxy-table">
         <thead>
           <tr>
-            <th onclick="sortBy('proxy')">Proxy Address ↕</th>
-            <th onclick="sortBy('protocol')">Protocol ↕</th>
-            <th onclick="sortBy('anonymity')">Anonymity ↕</th>
-            <th onclick="sortBy('latency_ms')">Latency ↕</th>
-            <th onclick="sortBy('score')">Score ↕</th>
-            <th onclick="sortBy('uptime_percent')">Uptime ↕</th>
-            <th onclick="sortBy('country_code')">Country ↕</th>
+            <th onclick="sortBy('proxy')">Proxy Address</th>
+            <th onclick="sortBy('protocol')">Protocol</th>
+            <th onclick="sortBy('anonymity')">Anonymity</th>
+            <th onclick="sortBy('latency_ms')">Latency</th>
+            <th onclick="sortBy('score')">Score</th>
+            <th onclick="sortBy('uptime_percent')">Uptime</th>
+            <th onclick="sortBy('country_code')">Country</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -635,7 +629,7 @@
   <p class="section-label">Live Activity Feed</p>
   <div class="activity-card">
     <div class="activity-header">
-      <span>🔴 Live — Proxies Found</span>
+      <span>Live Activity Feed</span>
       <button class="btn btn-sm btn-secondary" onclick="clearFeed()">Clear</button>
     </div>
     <div class="feed-wrap" id="activity-feed">
@@ -901,7 +895,7 @@ function renderTable(list) {
       : `<span class="badge badge-transparent">Transp</span>`;
 
     const protoBadge = `<span class="badge badge-${p.protocol}">${p.protocol.toUpperCase()}</span>`;
-    const sslBadge = p.ssl ? `<span class="badge badge-ssl">🔒 SSL</span>` : '';
+    const sslBadge = p.ssl ? `<span class="badge badge-ssl">SSL</span>` : '';
 
     const latMs = p.latency_ms || 0;
     const latClass = latMs < 500 ? 'lat-fast' : latMs < 2000 ? 'lat-med' : 'lat-slow';
@@ -921,8 +915,9 @@ function renderTable(list) {
         ${uptime}%
       </div>`;
 
-    const addr = `${p.protocol}://${p.ip}:${p.port}`;
-    const flag = countryFlag(p.country_code);
+    const ipPort = `${p.ip}:${p.port}`;
+    const testAddr = `${p.protocol}://${p.ip}:${p.port}`;
+    const cc = p.country_code || 'XX';
     return `<tr>
       <td><span style="font-weight:600;color:var(--text)">${p.ip}:${p.port}</span> ${sslBadge}</td>
       <td>${protoBadge}</td>
@@ -930,11 +925,11 @@ function renderTable(list) {
       <td>${latBadge}</td>
       <td>${scoreBar}</td>
       <td>${uptimeEl}</td>
-      <td><span class="flag">${flag}</span> <span style="color:var(--text-muted);font-size:11px">${p.country_code || '—'}</span></td>
+      <td><span style="font-weight:700;color:var(--accent2);font-size:11.5px">[${cc}]</span> <span style="color:var(--text-muted);font-size:11px">${p.country || ''}</span></td>
       <td>
         <div style="display:flex;gap:5px">
-          <button class="copy-btn" onclick="copyText('${addr}',this)">Copy</button>
-          <button class="copy-btn" onclick="prefillTest('${addr}')">Test</button>
+          <button class="copy-btn" onclick="copyText('${ipPort}',this)">Copy</button>
+          <button class="copy-btn" onclick="prefillTest('${testAddr}')">Test</button>
         </div>
       </td>
     </tr>`;
@@ -962,7 +957,7 @@ function addFeedItem(p) {
       <span class="badge badge-${p.protocol}" style="font-size:10px">${p.protocol.toUpperCase()}</span>
       <span style="font-size:11px;color:${anonColor}">${p.anonymity}</span>
       <span style="font-size:11px;color:var(--text-muted)">${p.latency_ms}ms</span>
-      ${p.country_code ? `<span style="font-size:11px;color:var(--text-dim)">${countryFlag(p.country_code)} ${p.country_code}</span>` : ''}
+      ${p.country_code ? `<span style="font-size:11px;color:var(--text-dim)">[${p.country_code}]</span>` : ''}
     </div>`;
   feed.prepend(el);
   // Keep max 100 items
@@ -989,20 +984,20 @@ async function testProxy() {
     const data = await resp.json();
     if (data.success) {
       result.className = 'test-result visible success';
-      result.innerHTML = `✅ <strong>ALIVE</strong>
+      result.innerHTML = `<strong>[ALIVE]</strong>
 Protocol: ${data.protocol} | Latency: ${data.latency_ms}ms | Anonymity: ${data.anonymity}
-Country: ${data.country || '—'} ${countryFlag(data.country_code)} | ASN: ${data.asn || '—'}
-SSL: ${data.ssl ? '🔒 Yes' : 'No'} | Judge confirmed: ${data.judge_count || 1}x`;
+Country: ${data.country || '—'} [${data.country_code || 'XX'}] | ASN: ${data.asn || '—'}
+SSL: ${data.ssl ? 'Yes' : 'No'} | Judge confirmed: ${data.judge_count || 1}x`;
     } else {
       result.className = 'test-result visible error';
-      result.innerHTML = `❌ <strong>DEAD</strong> — ${(data.error || 'Connection failed').replace(/</g,'&lt;')}`;
+      result.innerHTML = `<strong>[DEAD]</strong> — ${(data.error || 'Connection failed').replace(/</g,'&lt;')}`;
     }
   } catch(e) {
     result.className = 'test-result visible error';
-    result.textContent = '❌ Error: ' + e.message;
+    result.textContent = 'Error: ' + e.message;
   }
   btn.disabled = false;
-  btn.textContent = '▶ Test Proxy';
+  btn.textContent = 'Test Proxy';
 }
 
 function prefillTest(addr) {
@@ -1035,18 +1030,55 @@ function animateCounter(id, target) {
   el.textContent = fmt(target);
 }
 
+// Universal Clipboard function (Works on both HTTPS and plain HTTP)
+function copyToClipboard(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(text);
+  }
+  return new Promise((resolve, reject) => {
+    const el = document.createElement('textarea');
+    el.value = text;
+    el.setAttribute('readonly', '');
+    el.style.position = 'fixed';
+    el.style.left = '-9999px';
+    el.style.top = '-9999px';
+    document.body.appendChild(el);
+    el.focus();
+    el.select();
+    try {
+      const success = document.execCommand('copy');
+      document.body.removeChild(el);
+      if (success) resolve();
+      else reject(new Error('execCommand failed'));
+    } catch (err) {
+      document.body.removeChild(el);
+      reject(err);
+    }
+  });
+}
+
 function copyText(text, btn) {
-  navigator.clipboard.writeText(text).then(() => {
+  copyToClipboard(text).then(() => {
     const orig = btn.textContent;
-    btn.textContent = '✓';
+    btn.textContent = 'Copied';
     btn.style.color = '#34d399';
     setTimeout(() => { btn.textContent = orig; btn.style.color = ''; }, 1200);
+  }).catch(() => {
+    showToast('Failed to copy', 'error');
   });
 }
 
 function copyAll() {
-  const text = proxies.map(p => `${p.protocol}://${p.ip}:${p.port}`).join('\n');
-  navigator.clipboard.writeText(text).then(() => showToast(`Copied ${proxies.length} proxies`, 'success'));
+  if (!proxies || proxies.length === 0) {
+    showToast('No proxies to copy', 'error');
+    return;
+  }
+  const text = proxies.map(p => `${p.ip}:${p.port}`).join('\n');
+  copyToClipboard(text).then(() => {
+    showToast(`Copied ${proxies.length} proxies (IP:PORT)`, 'success');
+  }).catch(() => {
+    showToast('Failed to copy', 'error');
+  });
 }
 
 function resetFilters() {
@@ -1063,10 +1095,7 @@ function showToast(msg, type = '') {
 }
 
 function countryFlag(code) {
-  if (!code || code.length !== 2) return '';
-  try {
-    return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
-  } catch { return ''; }
+  return code || '—';
 }
 
 // ── Search debounce ──
