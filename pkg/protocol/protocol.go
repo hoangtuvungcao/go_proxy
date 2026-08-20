@@ -89,10 +89,8 @@ func CheckHTTP(ctx context.Context, proxyAddr string, judgeURL string, timeout t
 		u, _ = url.Parse("http://httpbin.org/ip")
 	}
 
-	reqPath := u.String()
-	if !strings.HasPrefix(reqPath, "http://") && !strings.HasPrefix(reqPath, "https://") {
-		reqPath = "http://" + u.Host + u.Path
-	}
+	// Luôn đảm bảo dùng giao thức HTTP thuần túy (port 80) cho HTTP Forward Proxy
+	reqPath := "http://" + u.Host + u.RequestURI()
 
 	// Dùng User-Agent giống trình duyệt thật để tránh bị block
 	req := fmt.Sprintf(
@@ -185,7 +183,7 @@ func validateJudgeResponse(headers http.Header, body []byte) error {
 			ip = strings.TrimSpace(ip)
 			parsed := net.ParseIP(ip)
 			if isPublicIP(parsed) {
-				// ✅ JSON chứa Public IP echo hợp lệ
+				// goproxy JSON chứa Public IP echo hợp lệ
 				return nil
 			}
 		}
@@ -211,7 +209,7 @@ func validateJudgeResponse(headers http.Header, body []byte) error {
 	strBody := strings.Trim(string(trimmed), "\"'\r\n\t ")
 	parsed := net.ParseIP(strBody)
 	if isPublicIP(parsed) {
-		// ✅ Trả về đúng 1 địa chỉ Public IP hợp lệ
+		//  Trả về đúng 1 địa chỉ Public IP hợp lệ
 		return nil
 	}
 

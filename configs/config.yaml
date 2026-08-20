@@ -25,11 +25,12 @@ protocol:
 # Anonymity judge endpoints
 judge:
   judges:
-    - "https://api.ipify.org?format=json"
+    - "http://api.ipify.org?format=json"
     - "http://httpbin.org/ip"
-    - "https://ifconfig.me/ip"
-    - "https://api.myip.com"
-  custom_judge_url: "http://103.77.246.161:8000/json"         # Example: "http://your-vps-ip:8000/json"
+    - "http://icanhazip.com"
+    - "http://ifconfig.me/ip"
+    - "http://checkip.amazonaws.com"
+  custom_judge_url: "http://103.77.246.161:8080/json"
   timeout: 3000ms
 
 # Real-world target verification (option161al)

@@ -41,10 +41,11 @@ func NewEvaluator(judges []string, customJudge string) *Evaluator {
 		list = append(list, judges...)
 	} else {
 		list = []string{
-			"https://api.ipify.org?format=json",
+			"http://api.ipify.org?format=json",
 			"http://httpbin.org/ip",
-			"https://ifconfig.me/ip",
-			"https://api.myip.com",
+			"http://icanhazip.com",
+			"http://ifconfig.me/ip",
+			"http://checkip.amazonaws.com",
 		}
 	}
 
