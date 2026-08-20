@@ -31,7 +31,7 @@ func NewChecker(cfg *model.Config) *Checker {
 	}
 	return &Checker{
 		config: cfg,
-		judge:  judge.NewEvaluator(cfg.Judge.Judges, cfg.Judge.CustomJudgeURL),
+		judge:  judge.NewEvaluator(cfg.Judge.Judges, cfg.Judge.CustomJudgeURL, cfg.Server.APIAddr),
 		geoip:  geoip.NewResolver(cfg.GeoIP.Enabled),
 	}
 }

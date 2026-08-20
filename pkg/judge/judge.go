@@ -101,32 +101,38 @@ type judgeEntry struct {
 type Evaluator struct {
 	myIP       string
 	myIPOnce   sync.Once
+	serverPort string
 	judges     []*judgeEntry
 	mu         sync.RWMutex
 	httpClient *http.Client
 }
 
-// NewEvaluator creates a new Evaluator with dynamic judge URL resolution
-func NewEvaluator(judges []string, customJudge string) *Evaluator {
+// NewEvaluator creates a new Evaluator with dynamic judge URL resolution based on server port configuration
+func NewEvaluator(judges []string, customJudge string, serverAddr ...string) *Evaluator {
+	port := "8080"
+	if len(serverAddr) > 0 && serverAddr[0] != "" {
+		port = serverAddr[0]
+	}
+
 	list := []string{}
 	if customJudge != "" {
-		resolved := ResolveJudgeURL(customJudge, "8080")
+		resolved := ResolveJudgeURL(customJudge, port)
 		if resolved != "" {
 			list = append(list, resolved)
 		}
 	}
 	if len(judges) > 0 {
 		for _, u := range judges {
-			resolved := ResolveJudgeURL(u, "8080")
+			resolved := ResolveJudgeURL(u, port)
 			if resolved != "" {
 				list = append(list, resolved)
 			}
 		}
 	} else {
 		list = []string{
-			ResolveJudgeURL("/json", "8080"),
-			ResolveJudgeURL("/judge", "8080"),
-			ResolveJudgeURL("/ip", "8080"),
+			ResolveJudgeURL("/json", port),
+			ResolveJudgeURL("/judge", port),
+			ResolveJudgeURL("/ip", port),
 		}
 	}
 
@@ -139,7 +145,8 @@ func NewEvaluator(judges []string, customJudge string) *Evaluator {
 	}
 
 	ev := &Evaluator{
-		judges: entries,
+		serverPort: port,
+		judges:     entries,
 		httpClient: &http.Client{
 			Timeout: 5 * time.Second,
 			Transport: &http.Transport{
@@ -218,7 +225,7 @@ func (e *Evaluator) PickJudge() string {
 	if len(e.judges) > 0 {
 		return e.judges[0].url
 	}
-	return ResolveJudgeURL("/json", "8080")
+	return ResolveJudgeURL("/json", e.serverPort)
 }
 
 // GetMyPublicIP fetches the host's actual public IP to detect transparent proxies
