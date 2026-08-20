@@ -1,0 +1,63 @@
+# ==============================================================================
+# GoProxy Pro Configuration File
+# ==============================================================================
+
+# Core scanning & checking engine configuration
+engine:
+  workers: 3000                # Number of concurrent workers (1000 - 10000+ depending on RAM/network)
+  connect_timeout: 1500ms      # TCP connect timeout (Stage 1 fast-fail filter)
+  read_write_timeout: 3000ms   # Protocol handshake and response timeout
+  max_queue_size: 50000        # Backpressure queue size for ZMap stdin streaming
+  rate_limit: 0                # Maximum requests per second (0 = unlimited)
+  max_retries: 1               # Number of retries on network error
+  auto_port: 8080              # Default port when input lines are single IP addresses
+
+# Protocol probing settings
+protocol:
+  protocols:
+    - http
+    - https
+    - socks5
+    - socks4
+  auto_detect: true            # Automatically probe and detect protocol if not specified
+  fast_fail_tcp: true          # Probe raw TCP socket before initiating protocol handshakes
+
+# Anonymity judge endpoints
+judge:
+  judges:
+    - "https://api.ipify.org?format=json"
+    - "http://httpbin.org/ip"
+    - "https://ifconfig.me/ip"
+    - "https://api.myip.com"
+  custom_judge_url: ""         # Example: "http://your-vps-ip:8000/json"
+  timeout: 3000ms
+
+# Real-world target verification (optional)
+target:
+  enabled: false
+  url: "https://www.google.com"
+  timeout: 3000ms
+  expected_status: 200
+
+# Persistent storage & file exports
+storage:
+  output_dir: "output"         # Directory where alive proxies will be saved
+  save_sqlite: true            # Persist proxy history & scores in SQLite
+  db_path: "proxies.db"        # SQLite database filename
+  split_by_country: true       # Save to output/countries/<COUNTRY_CODE>.txt
+  split_by_type: true          # Save to output/http.txt, socks5.txt, etc.
+  save_json: true              # Save to output/proxies.jsonl
+  save_csv: false              # Save to output/proxies.csv
+
+# REST API & Web UI Dashboard
+server:
+  enable_api: true
+  api_addr: ":8080"            # Web Dashboard & REST API
+  auth_token: ""
+
+# GeoIP & ASN Resolution
+geoip:
+  enabled: true
+  online_api: true
+
+

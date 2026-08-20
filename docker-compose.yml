@@ -1,0 +1,24 @@
+services:
+  goproxy-server:
+    build: .
+    container_name: goproxy-server
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./proxies.db:/app/proxies.db
+      - ./output:/app/output
+      - ./configs:/app/configs
+    command: ["server", "--api-addr", ":8080"]
+
+  goproxy-daemon:
+    build: .
+    container_name: goproxy-daemon
+    restart: unless-stopped
+    volumes:
+      - ./proxies.db:/app/proxies.db
+      - ./output:/app/output
+      - ./configs:/app/configs
+    command: ["daemon", "--interval", "5m", "--workers", "500"]
+    depends_on:
+      - goproxy-server

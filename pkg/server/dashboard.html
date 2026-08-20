@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GoProxy 2026 — World-Class Proxy Intelligence Dashboard</title>
+  <meta name="description" content="Real-time proxy scanner dashboard with live metrics, protocol analysis, country heatmap, and proxy quality scoring.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg-base: #030609;
+      --bg-surface: rgba(8, 14, 26, 0.85);
+      --bg-card: rgba(12, 20, 38, 0.70);
+      --bg-input: rgba(6, 11, 22, 0.9);
+      --border: rgba(56, 189, 248, 0.12);
+      --border-glow: rgba(99, 102, 241, 0.35);
+      --accent: #6366f1;
+      --accent2: #38bdf8;
+      --accent3: #10b981;
+      --accent4: #f59e0b;
+      --accent5: #f43f5e;
+      --accent6: #a855f7;
+      --text: #f0f6ff;
+      --text-muted: #7a92b0;
+      --text-dim: #3d526b;
+      --elite: #10b981;
+      --anon: #f59e0b;
+      --transp: #f43f5e;
+      --http-c: #60a5fa;
+      --https-c: #34d399;
+      --s5-c: #a78bfa;
+      --s4-c: #fb923c;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: var(--bg-base);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+      line-height: 1.55;
+    }
+
+    /* Animated background */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: -1;
+      background:
+        radial-gradient(ellipse 80% 60% at 10% 5%, rgba(99,102,241,0.12) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 90% 90%, rgba(56,189,248,0.10) 0%, transparent 55%),
+        radial-gradient(ellipse 40% 30% at 50% 50%, rgba(16,185,129,0.05) 0%, transparent 50%),
+        #030609;
+    }
+
+    /* Grid dots overlay */
+    body::after {
+      content: '';
+      position: fixed; inset: 0; z-index: -1;
+      background-image:
+        radial-gradient(circle, rgba(56,189,248,0.06) 1px, transparent 1px);
+      background-size: 30px 30px;
+      pointer-events: none;
+    }
+
+    .container { max-width: 1600px; margin: 0 auto; padding: 20px 24px; }
+
+    /* ── Header ── */
+    .header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 18px 28px; margin-bottom: 20px;
+      background: var(--bg-surface);
+      backdrop-filter: blur(24px) saturate(180%);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 0 0 1px rgba(99,102,241,0.06), 0 20px 40px rgba(0,0,0,0.5);
+      position: sticky; top: 12px; z-index: 100;
+    }
+    .logo-area { display: flex; align-items: center; gap: 16px; }
+    .logo-badge {
+      background: linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%);
+      padding: 8px 16px; border-radius: 10px;
+      font-weight: 900; font-size: 15px; letter-spacing: 2px;
+      text-transform: uppercase; color: #fff;
+      box-shadow: 0 0 20px rgba(99,102,241,0.5);
+    }
+    .header-title h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+    .header-title p { font-size: 12px; color: var(--text-muted); }
+    .header-status { display: flex; align-items: center; gap: 20px; }
+    .status-pill {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 14px; border-radius: 20px;
+      background: rgba(16,185,129,0.1);
+      border: 1px solid rgba(16,185,129,0.25);
+      font-size: 12px; font-weight: 600;
+    }
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--elite);
+      animation: pulse-dot 1.5s ease-in-out infinite;
+      box-shadow: 0 0 8px var(--elite);
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(0.85); }
+    }
+    .header-actions { display: flex; gap: 10px; align-items: center; }
+
+    /* ── Buttons ── */
+    .btn {
+      padding: 8px 16px; border-radius: 9px; border: 1px solid transparent;
+      cursor: pointer; font-weight: 600; font-size: 12.5px; font-family: inherit;
+      transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+      display: inline-flex; align-items: center; gap: 7px; text-decoration: none;
+      white-space: nowrap;
+    }
+    .btn-primary {
+      background: var(--accent); color: #fff;
+      box-shadow: 0 4px 16px rgba(99,102,241,0.35);
+    }
+    .btn-primary:hover { background: #4f46e5; transform: translateY(-1px); box-shadow: 0 6px 24px rgba(99,102,241,0.5); }
+    .btn-secondary {
+      background: rgba(255,255,255,0.04); color: var(--text-muted);
+      border-color: var(--border);
+    }
+    .btn-secondary:hover { background: rgba(99,102,241,0.12); color: var(--text); border-color: var(--border-glow); }
+    .btn-success {
+      background: rgba(16,185,129,0.15); color: var(--elite);
+      border-color: rgba(16,185,129,0.3);
+    }
+    .btn-success:hover { background: rgba(16,185,129,0.25); }
+    .btn-danger {
+      background: rgba(244,63,94,0.12); color: var(--accent5);
+      border-color: rgba(244,63,94,0.25);
+    }
+    .btn-danger:hover { background: rgba(244,63,94,0.22); }
+    .btn-sm { padding: 5px 11px; font-size: 11.5px; border-radius: 7px; }
+
+    /* ── Stat Cards ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 14px; margin-bottom: 20px;
+    }
+    @media (max-width: 1400px) { .stats-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 900px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+
+    .stat-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px 20px;
+      position: relative; overflow: hidden;
+      transition: transform 0.2s, box-shadow 0.2s;
+      cursor: default;
+    }
+    .stat-card:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(0,0,0,0.5); }
+    .stat-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    }
+    .stat-card.c-alive::before { background: linear-gradient(90deg, var(--elite), #34d399); }
+    .stat-card.c-scan::before { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+    .stat-card.c-speed::before { background: linear-gradient(90deg, var(--accent2), #0ea5e9); }
+    .stat-card.c-elite::before { background: linear-gradient(90deg, var(--elite), #6ee7b7); }
+    .stat-card.c-http::before { background: linear-gradient(90deg, var(--http-c), #93c5fd); }
+    .stat-card.c-socks::before { background: linear-gradient(90deg, var(--s5-c), var(--s4-c)); }
+    .stat-icon { font-size: 22px; margin-bottom: 8px; display: block; }
+    .stat-label { font-size: 10.5px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
+    .stat-value {
+      font-size: 30px; font-weight: 800; font-family: 'JetBrains Mono', monospace;
+      background: linear-gradient(135deg, #fff 30%, var(--text-muted));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      transition: all 0.3s;
+    }
+    .stat-card.c-alive .stat-value { background: linear-gradient(135deg, #34d399, #10b981); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .stat-card.c-speed .stat-value { background: linear-gradient(135deg, #38bdf8, #0284c7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .stat-card.c-elite .stat-value { background: linear-gradient(135deg, #a78bfa, #7c3aed); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .stat-sub { font-size: 11px; color: var(--text-dim); margin-top: 3px; }
+
+    /* ── Charts Row ── */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr;
+      gap: 16px; margin-bottom: 20px;
+    }
+    @media (max-width: 1200px) { .charts-grid { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 768px) { .charts-grid { grid-template-columns: 1fr; } }
+
+    .chart-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      position: relative;
+    }
+    .chart-title {
+      font-size: 12px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.8px; color: var(--text-muted); margin-bottom: 14px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .chart-title .dot { width: 6px; height: 6px; border-radius: 50%; }
+    .chart-wrap { position: relative; height: 160px; }
+
+    /* ── Controls ── */
+    .controls-row {
+      display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;
+      background: var(--bg-card);
+      backdrop-filter: blur(20px);
+      padding: 16px 20px; border-radius: 14px;
+      border: 1px solid var(--border); align-items: center;
+    }
+    .filter-group { display: flex; align-items: center; gap: 8px; }
+    .filter-label { font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; white-space: nowrap; }
+    select, input[type="text"], input[type="number"] {
+      background: var(--bg-input); border: 1px solid var(--border);
+      color: var(--text); padding: 8px 12px; border-radius: 8px;
+      font-family: inherit; font-size: 13px; outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      min-width: 120px;
+    }
+    select:focus, input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+    }
+    .search-input { min-width: 200px; }
+    .controls-spacer { flex: 1; }
+
+    /* ── Proxy Table ── */
+    .table-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+    .table-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 16px 22px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(99,102,241,0.04);
+    }
+    .table-title { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+    .table-count {
+      background: rgba(99,102,241,0.15); color: var(--accent);
+      padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 700;
+    }
+    .table-wrap { overflow-x: auto; max-height: 540px; overflow-y: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    thead { position: sticky; top: 0; z-index: 10; }
+    th {
+      padding: 10px 14px; text-align: left;
+      font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px;
+      text-transform: uppercase; color: var(--text-muted);
+      background: rgba(8,14,26,0.95);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap; cursor: pointer;
+      transition: color 0.15s;
+    }
+    th:hover { color: var(--accent2); }
+    td {
+      padding: 9px 14px; border-bottom: 1px solid rgba(56,189,248,0.05);
+      font-family: 'JetBrains Mono', monospace; font-size: 12px;
+      vertical-align: middle; white-space: nowrap;
+    }
+    tr:hover td { background: rgba(99,102,241,0.04); }
+    tr:last-child td { border-bottom: none; }
+
+    .badge {
+      display: inline-block; padding: 2px 9px; border-radius: 6px;
+      font-size: 10.5px; font-weight: 700; letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .badge-elite { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.25); }
+    .badge-anonymous { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.25); }
+    .badge-transparent { background: rgba(244,63,94,0.12); color: #fb7185; border: 1px solid rgba(244,63,94,0.25); }
+    .badge-http { background: rgba(96,165,250,0.12); color: #93c5fd; border: 1px solid rgba(96,165,250,0.2); }
+    .badge-https { background: rgba(52,211,153,0.12); color: #6ee7b7; border: 1px solid rgba(52,211,153,0.2); }
+    .badge-socks5 { background: rgba(167,139,250,0.12); color: #c4b5fd; border: 1px solid rgba(167,139,250,0.2); }
+    .badge-socks4 { background: rgba(251,146,60,0.12); color: #fdba74; border: 1px solid rgba(251,146,60,0.2); }
+    .badge-ssl { background: rgba(16,185,129,0.1); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.15); padding: 2px 6px; }
+
+    .latency-badge {
+      padding: 2px 8px; border-radius: 6px; font-size: 10.5px; font-weight: 600;
+    }
+    .lat-fast { background: rgba(16,185,129,0.12); color: #34d399; }
+    .lat-med { background: rgba(245,158,11,0.12); color: #fbbf24; }
+    .lat-slow { background: rgba(244,63,94,0.12); color: #fb7185; }
+
+    .score-bar-wrap { display: flex; align-items: center; gap: 8px; }
+    .score-bar {
+      width: 60px; height: 5px; border-radius: 3px; background: rgba(255,255,255,0.06);
+      overflow: hidden; display: inline-block;
+    }
+    .score-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s; }
+    .score-num { font-size: 11px; color: var(--text-muted); width: 26px; text-align: right; }
+
+    .copy-btn {
+      background: none; border: 1px solid var(--border); color: var(--text-muted);
+      padding: 3px 7px; border-radius: 5px; cursor: pointer; font-size: 10.5px;
+      font-family: inherit; transition: all 0.15s;
+    }
+    .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Test Panel ── */
+    .test-panel {
+      background: var(--bg-card);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px; margin-bottom: 20px;
+    }
+    .test-panel h3 { font-size: 13px; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+    .test-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .test-input { flex: 1; min-width: 280px; font-family: 'JetBrains Mono', monospace; }
+    .test-result {
+      margin-top: 14px; padding: 14px 18px; border-radius: 10px;
+      background: rgba(0,0,0,0.35); border: 1px solid var(--border);
+      font-family: 'JetBrains Mono', monospace; font-size: 12px;
+      display: none; word-break: break-all;
+      max-height: 180px; overflow-y: auto;
+    }
+    .test-result.visible { display: block; }
+    .test-result.success { border-color: rgba(16,185,129,0.3); background: rgba(16,185,129,0.05); }
+    .test-result.error { border-color: rgba(244,63,94,0.3); background: rgba(244,63,94,0.05); }
+
+    /* ── Activity Feed ── */
+    .activity-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden; margin-bottom: 20px;
+    }
+    .activity-header {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px; font-weight: 700;
+      background: rgba(99,102,241,0.04);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .feed-wrap { max-height: 240px; overflow-y: auto; padding: 8px 4px; }
+    .feed-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 7px 16px; border-radius: 8px;
+      animation: slide-in 0.3s ease;
+      font-size: 12px;
+    }
+    .feed-item:hover { background: rgba(99,102,241,0.06); }
+    @keyframes slide-in {
+      from { opacity: 0; transform: translateX(-8px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    .feed-time { font-size: 10px; color: var(--text-dim); white-space: nowrap; font-family: 'JetBrains Mono', monospace; }
+    .feed-proxy { font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--text); }
+    .feed-meta { display: flex; align-items: center; gap: 6px; flex: 1; justify-content: flex-end; }
+
+    /* ── Bottom Row ── */
+    .bottom-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;
+    }
+    @media (max-width: 900px) { .bottom-grid { grid-template-columns: 1fr; } }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.3); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(99,102,241,0.5); }
+
+    /* ── Loading state ── */
+    .loading { opacity: 0.5; pointer-events: none; }
+    .spinner {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid rgba(99,102,241,0.3); border-top-color: var(--accent);
+      border-radius: 50%; animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+      padding: 12px 18px; border-radius: 10px;
+      background: var(--bg-surface); border: 1px solid var(--border);
+      backdrop-filter: blur(20px);
+      font-size: 13px; font-weight: 500;
+      transform: translateY(80px); opacity: 0;
+      transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast.success { border-color: rgba(16,185,129,0.4); }
+    .toast.error { border-color: rgba(244,63,94,0.4); }
+
+    /* ── Section divider ── */
+    .section-label {
+      font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1px; color: var(--text-dim); margin-bottom: 12px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .section-label::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+
+    /* ── Uptime pill ── */
+    .uptime-pill {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 11px; color: var(--text-muted);
+    }
+    .uptime-bar {
+      width: 40px; height: 4px; border-radius: 2px;
+      background: rgba(255,255,255,0.06); overflow: hidden; display: inline-block;
+    }
+    .uptime-fill { height: 100%; background: var(--elite); border-radius: 2px; }
+
+    .flag { font-size: 16px; }
+
+    /* Glow effects */
+    .glow-green { text-shadow: 0 0 12px rgba(16,185,129,0.7); }
+    .glow-cyan { text-shadow: 0 0 12px rgba(56,189,248,0.7); }
+    .glow-purple { text-shadow: 0 0 12px rgba(167,139,250,0.7); }
+
+    /* Export dropdown */
+    .export-wrap { position: relative; }
+    .export-dropdown {
+      display: none; position: absolute; top: calc(100% + 8px); right: 0;
+      background: var(--bg-surface); border: 1px solid var(--border);
+      border-radius: 10px; overflow: hidden; min-width: 160px;
+      backdrop-filter: blur(20px); z-index: 200;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    .export-wrap:hover .export-dropdown { display: block; }
+    .export-item {
+      padding: 10px 16px; font-size: 12.5px; cursor: pointer; display: flex; align-items: center; gap: 8px;
+      color: var(--text-muted); transition: background 0.15s;
+    }
+    .export-item:hover { background: rgba(99,102,241,0.12); color: var(--text); }
+
+    .connect-line {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 11.5px; color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <header class="header">
+    <div class="logo-area">
+      <div class="logo-badge">GoProxy</div>
+      <div class="header-title">
+        <h1>Proxy Intelligence Dashboard</h1>
+        <p id="header-sub">Connecting to stream…</p>
+      </div>
+    </div>
+    <div class="header-status">
+      <div class="status-pill">
+        <div class="status-dot" id="status-dot"></div>
+        <span id="status-text">Live</span>
+      </div>
+      <div class="connect-line">
+        <span id="runtime-display">—</span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <div class="export-wrap">
+        <button class="btn btn-secondary" id="export-btn">⬇ Export</button>
+        <div class="export-dropdown">
+          <div class="export-item" onclick="exportProxies('txt')">📄 Text (ip:port)</div>
+          <div class="export-item" onclick="exportProxies('csv')">📊 CSV Spreadsheet</div>
+          <div class="export-item" onclick="exportProxies('json')">{ } JSON</div>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="loadProxies()">↺ Refresh</button>
+    </div>
+  </header>
+
+  <!-- Stat Cards -->
+  <div class="stats-grid">
+    <div class="stat-card c-alive">
+      <span class="stat-icon">🟢</span>
+      <div class="stat-label">Alive in Pool</div>
+      <div class="stat-value" id="s-alive">0</div>
+      <div class="stat-sub" id="s-alive-rate">–</div>
+    </div>
+    <div class="stat-card c-scan">
+      <span class="stat-icon">🔍</span>
+      <div class="stat-label">Total Scanned</div>
+      <div class="stat-value" id="s-scanned">0</div>
+      <div class="stat-sub" id="s-dead">0 dead</div>
+    </div>
+    <div class="stat-card c-speed">
+      <span class="stat-icon">⚡</span>
+      <div class="stat-label">Scan Speed</div>
+      <div class="stat-value" id="s-speed">0</div>
+      <div class="stat-sub">/second</div>
+    </div>
+    <div class="stat-card c-elite">
+      <span class="stat-icon">🛡</span>
+      <div class="stat-label">Elite Proxies</div>
+      <div class="stat-value" id="s-elite">0</div>
+      <div class="stat-sub" id="s-anon">0 anonymous</div>
+    </div>
+    <div class="stat-card c-http">
+      <span class="stat-icon">🌐</span>
+      <div class="stat-label">HTTP / HTTPS</div>
+      <div class="stat-value" id="s-http">0</div>
+      <div class="stat-sub" id="s-https">0 https</div>
+    </div>
+    <div class="stat-card c-socks">
+      <span class="stat-icon">🔌</span>
+      <div class="stat-label">SOCKS5 / SOCKS4</div>
+      <div class="stat-value" id="s-socks5">0</div>
+      <div class="stat-sub" id="s-socks4">0 socks4</div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <p class="section-label">Real-Time Analytics</p>
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-title"><div class="dot" style="background:var(--elite)"></div>Alive Proxies Over Time</div>
+      <div class="chart-wrap"><canvas id="chart-alive"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title"><div class="dot" style="background:var(--accent)"></div>Protocol Distribution</div>
+      <div class="chart-wrap"><canvas id="chart-protocol"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title"><div class="dot" style="background:var(--accent4)"></div>Top Countries</div>
+      <div class="chart-wrap"><canvas id="chart-country"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Proxy Test Panel -->
+  <p class="section-label">Proxy Tester</p>
+  <div class="test-panel">
+    <h3>🔬 Live Proxy Verification</h3>
+    <div class="test-row">
+      <input type="text" class="test-input" id="test-proxy-input" placeholder="e.g. socks5://1.2.3.4:1080 or 1.2.3.4:8080" autocomplete="off">
+      <button class="btn btn-primary" id="test-btn" onclick="testProxy()">▶ Test Proxy</button>
+    </div>
+    <div class="test-result" id="test-result"></div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls-row">
+    <div class="filter-group">
+      <span class="filter-label">Protocol</span>
+      <select id="f-proto">
+        <option value="">All</option>
+        <option value="http">HTTP</option>
+        <option value="https">HTTPS</option>
+        <option value="socks5">SOCKS5</option>
+        <option value="socks4">SOCKS4</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Anonymity</span>
+      <select id="f-anon">
+        <option value="">All</option>
+        <option value="elite">Elite</option>
+        <option value="anonymous">Anonymous</option>
+        <option value="transparent">Transparent</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Country</span>
+      <input type="text" id="f-country" placeholder="e.g. VN, US, CN" style="width:100px;">
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Min Score</span>
+      <input type="number" id="f-score" placeholder="0" min="0" max="100" style="width:80px;">
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Max Latency</span>
+      <input type="number" id="f-latency" placeholder="ms" min="0" style="width:90px;">
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Search</span>
+      <input type="text" class="search-input" id="f-search" placeholder="IP or country…">
+    </div>
+    <div class="controls-spacer"></div>
+    <div class="filter-group">
+      <span class="filter-label">Limit</span>
+      <select id="f-limit">
+        <option value="50">50</option>
+        <option value="100" selected>100</option>
+        <option value="250">250</option>
+        <option value="500">500</option>
+        <option value="1000">1000</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" onclick="loadProxies()">🔍 Filter</button>
+    <button class="btn btn-secondary" onclick="resetFilters()">✕ Reset</button>
+  </div>
+
+  <!-- Proxy Table -->
+  <div class="table-card">
+    <div class="table-header">
+      <div class="table-title">
+        📋 Proxy Pool
+        <span class="table-count" id="tbl-count">0</span>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span id="tbl-spinner" style="display:none"><div class="spinner"></div></span>
+        <button class="btn btn-sm btn-success" onclick="loadProxies()">Refresh</button>
+        <button class="btn btn-sm btn-secondary" onclick="copyAll()">Copy All</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table id="proxy-table">
+        <thead>
+          <tr>
+            <th onclick="sortBy('proxy')">Proxy Address ↕</th>
+            <th onclick="sortBy('protocol')">Protocol ↕</th>
+            <th onclick="sortBy('anonymity')">Anonymity ↕</th>
+            <th onclick="sortBy('latency_ms')">Latency ↕</th>
+            <th onclick="sortBy('score')">Score ↕</th>
+            <th onclick="sortBy('uptime_percent')">Uptime ↕</th>
+            <th onclick="sortBy('country_code')">Country ↕</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="proxy-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Live Activity Feed -->
+  <p class="section-label">Live Activity Feed</p>
+  <div class="activity-card">
+    <div class="activity-header">
+      <span>🔴 Live — Proxies Found</span>
+      <button class="btn btn-sm btn-secondary" onclick="clearFeed()">Clear</button>
+    </div>
+    <div class="feed-wrap" id="activity-feed">
+      <div style="padding:20px;text-align:center;color:var(--text-dim);font-size:12px;">Waiting for incoming proxies…</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Config & State ──
+const API = '';
+let proxies = [];
+let sortKey = 'score';
+let sortDir = -1;
+let charts = {};
+let liveHistory = [];
+let startTime = Date.now();
+let firstFeed = true;
+
+// ── Chart.js global defaults ──
+Chart.defaults.color = '#7a92b0';
+Chart.defaults.borderColor = 'rgba(56,189,248,0.08)';
+Chart.defaults.font.family = "'Outfit', sans-serif";
+
+// ── Init Charts ──
+function initCharts() {
+  const commonOptions = { responsive: true, maintainAspectRatio: false, animation: { duration: 300 } };
+
+  // Line chart — alive over time
+  const aliveCtx = document.getElementById('chart-alive').getContext('2d');
+  charts.alive = new Chart(aliveCtx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Alive',
+        data: [],
+        borderColor: '#10b981',
+        backgroundColor: 'rgba(16,185,129,0.08)',
+        fill: true,
+        tension: 0.4,
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+      }, {
+        label: 'Speed/s',
+        data: [],
+        borderColor: '#38bdf8',
+        backgroundColor: 'rgba(56,189,248,0.05)',
+        fill: false,
+        tension: 0.4,
+        borderWidth: 1.5,
+        pointRadius: 0,
+        yAxisID: 'y2',
+      }]
+    },
+    options: {
+      ...commonOptions,
+      plugins: { legend: { display: true, position: 'top', labels: { font: { size: 11 }, boxWidth: 12 } } },
+      scales: {
+        x: { display: false },
+        y: { display: true, grid: { color: 'rgba(56,189,248,0.06)' }, beginAtZero: true, ticks: { font: { size: 10 } } },
+        y2: { display: false, position: 'right', beginAtZero: true }
+      }
+    }
+  });
+
+  // Doughnut — protocol
+  const protoCtx = document.getElementById('chart-protocol').getContext('2d');
+  charts.protocol = new Chart(protoCtx, {
+    type: 'doughnut',
+    data: {
+      labels: ['HTTP', 'HTTPS', 'SOCKS5', 'SOCKS4'],
+      datasets: [{ data: [0,0,0,0], backgroundColor: ['#60a5fa','#34d399','#a78bfa','#fb923c'], borderWidth: 0, hoverOffset: 8 }]
+    },
+    options: {
+      ...commonOptions,
+      cutout: '72%',
+      plugins: {
+        legend: { position: 'right', labels: { font: { size: 11 }, boxWidth: 12, padding: 8 } }
+      }
+    }
+  });
+
+  // Bar — top countries
+  const countryCtx = document.getElementById('chart-country').getContext('2d');
+  charts.country = new Chart(countryCtx, {
+    type: 'bar',
+    data: {
+      labels: [],
+      datasets: [{ label: 'Count', data: [], backgroundColor: 'rgba(99,102,241,0.55)', borderRadius: 5, borderWidth: 0 }]
+    },
+    options: {
+      ...commonOptions,
+      indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { display: true, grid: { color: 'rgba(56,189,248,0.06)' }, ticks: { font: { size: 10 } } },
+        y: { display: true, ticks: { font: { size: 10 } } }
+      }
+    }
+  });
+}
+
+// ── SSE Stream ──
+function connectStream() {
+  const es = new EventSource(`${API}/api/v1/stream`);
+  es.onopen = () => {
+    document.getElementById('status-dot').style.background = '#10b981';
+    document.getElementById('status-text').textContent = 'Live';
+  };
+  es.onerror = () => {
+    document.getElementById('status-dot').style.background = '#f43f5e';
+    document.getElementById('status-text').textContent = 'Reconnecting…';
+  };
+  es.onmessage = (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      if (data.type === 'proxy' && data.proxy) {
+        addFeedItem(data.proxy);
+      } else {
+        updateStats(data);
+      }
+    } catch(_) {}
+  };
+}
+
+// ── Stats update ──
+function updateStats(data) {
+  const m = data.live_metrics || {};
+
+  const scanned = m.total_scanned || 0;
+  const alive = m.total_alive || 0;
+  const dead = m.total_dead || 0;
+  const speed = m.speed_ips_sec || 0;
+  const dbAlive = data.total_alive_in_db || 0;
+
+  // Animate counter updates
+  animateCounter('s-alive', dbAlive || alive);
+  animateCounter('s-scanned', scanned);
+  animateCounter('s-elite', m.elite_alive || 0);
+  animateCounter('s-socks5', m.socks5_alive || 0);
+  animateCounter('s-http', m.http_alive || 0);
+
+  document.getElementById('s-dead').textContent = fmt(dead) + ' dead';
+  document.getElementById('s-speed').textContent = Math.round(speed).toLocaleString();
+  document.getElementById('s-https').textContent = fmt(m.https_alive || 0) + ' https';
+  document.getElementById('s-socks4').textContent = fmt(m.socks4_alive || 0) + ' socks4';
+  document.getElementById('s-anon').textContent = fmt(m.anonymous_alive || 0) + ' anonymous';
+
+  const rate = scanned > 0 ? (alive / scanned * 100).toFixed(1) : 0;
+  document.getElementById('s-alive-rate').textContent = rate + '% hit rate';
+
+  // Update runtime
+  const elapsed = Math.floor((Date.now() - startTime) / 1000);
+  const h = Math.floor(elapsed / 3600), mm = Math.floor((elapsed % 3600) / 60), ss = elapsed % 60;
+  document.getElementById('runtime-display').textContent = `${pad(h)}:${pad(mm)}:${pad(ss)}`;
+  document.getElementById('header-sub').textContent = `Updated ${new Date().toLocaleTimeString()}`;
+
+  // Push to history chart
+  const now = new Date().toLocaleTimeString('en', {hour12: false, hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  if (charts.alive) {
+    const d = charts.alive.data;
+    d.labels.push(now);
+    d.datasets[0].data.push(alive);
+    d.datasets[1].data.push(Math.round(speed));
+    if (d.labels.length > 60) {
+      d.labels.shift();
+      d.datasets[0].data.shift();
+      d.datasets[1].data.shift();
+    }
+    charts.alive.update('none');
+  }
+
+  // Fetch breakdown for protocol/country charts (every 5 seconds via approximation)
+  if (Math.floor(Date.now() / 5000) !== window._lastBreakdown) {
+    window._lastBreakdown = Math.floor(Date.now() / 5000);
+    fetchBreakdown();
+  }
+}
+
+function fetchBreakdown() {
+  fetch(`${API}/api/v1/stats/breakdown`)
+    .then(r => r.json())
+    .then(data => {
+      // Protocol chart
+      if (charts.protocol && data.by_protocol) {
+        const bp = data.by_protocol;
+        charts.protocol.data.datasets[0].data = [
+          bp.http || 0, bp.https || 0, bp.socks5 || 0, bp.socks4 || 0
+        ];
+        charts.protocol.update('none');
+      }
+      // Country chart
+      if (charts.country && data.by_country) {
+        const bc = data.by_country;
+        const sorted = Object.entries(bc).sort((a,b) => b[1]-a[1]).slice(0,8);
+        charts.country.data.labels = sorted.map(([k]) => k);
+        charts.country.data.datasets[0].data = sorted.map(([,v]) => v);
+        charts.country.update('none');
+      }
+    }).catch(() => {});
+}
+
+// ── Proxy Table ──
+async function loadProxies() {
+  const spinner = document.getElementById('tbl-spinner');
+  spinner.style.display = '';
+  const params = new URLSearchParams({
+    protocol: document.getElementById('f-proto').value,
+    anonymity: document.getElementById('f-anon').value,
+    country: document.getElementById('f-country').value.toUpperCase(),
+    min_score: document.getElementById('f-score').value || '',
+    max_latency: document.getElementById('f-latency').value || '',
+    limit: document.getElementById('f-limit').value,
+    alive: 'true'
+  });
+  // Remove empty params
+  for (const [k, v] of [...params]) { if (!v) params.delete(k); }
+  try {
+    const resp = await fetch(`${API}/api/v1/proxies?${params}`);
+    const data = await resp.json();
+    proxies = data.proxies || [];
+    applySearch();
+  } catch(e) {
+    showToast('Failed to load proxies: ' + e.message, 'error');
+  }
+  spinner.style.display = 'none';
+}
+
+function applySearch() {
+  const q = (document.getElementById('f-search').value || '').toLowerCase();
+  let filtered = proxies;
+  if (q) filtered = proxies.filter(p =>
+    (p.ip || '').includes(q) ||
+    (p.country_code || '').toLowerCase().includes(q) ||
+    (p.country || '').toLowerCase().includes(q) ||
+    (p.protocol || '').includes(q)
+  );
+  filtered.sort((a, b) => {
+    const av = a[sortKey] ?? 0, bv = b[sortKey] ?? 0;
+    return sortDir * (av > bv ? 1 : av < bv ? -1 : 0);
+  });
+  renderTable(filtered);
+}
+
+function renderTable(list) {
+  const tbody = document.getElementById('proxy-tbody');
+  document.getElementById('tbl-count').textContent = list.length;
+  if (!list || list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-dim)">No proxies found matching the current filters.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map(p => {
+    const anonBadge = p.anonymity === 'elite'
+      ? `<span class="badge badge-elite">Elite</span>`
+      : p.anonymity === 'anonymous'
+      ? `<span class="badge badge-anonymous">Anon</span>`
+      : `<span class="badge badge-transparent">Transp</span>`;
+
+    const protoBadge = `<span class="badge badge-${p.protocol}">${p.protocol.toUpperCase()}</span>`;
+    const sslBadge = p.ssl ? `<span class="badge badge-ssl">🔒 SSL</span>` : '';
+
+    const latMs = p.latency_ms || 0;
+    const latClass = latMs < 500 ? 'lat-fast' : latMs < 2000 ? 'lat-med' : 'lat-slow';
+    const latBadge = `<span class="latency-badge ${latClass}">${latMs}ms</span>`;
+
+    const scoreColor = p.score >= 70 ? '#34d399' : p.score >= 40 ? '#fbbf24' : '#fb7185';
+    const scoreBar = `
+      <div class="score-bar-wrap">
+        <div class="score-bar"><div class="score-bar-fill" style="width:${p.score}%;background:${scoreColor}"></div></div>
+        <div class="score-num" style="color:${scoreColor}">${p.score}</div>
+      </div>`;
+
+    const uptime = (p.uptime_percent || 100).toFixed(1);
+    const uptimeEl = `
+      <div class="uptime-pill">
+        <div class="uptime-bar"><div class="uptime-fill" style="width:${uptime}%"></div></div>
+        ${uptime}%
+      </div>`;
+
+    const addr = `${p.protocol}://${p.ip}:${p.port}`;
+    const flag = countryFlag(p.country_code);
+    return `<tr>
+      <td><span style="font-weight:600;color:var(--text)">${p.ip}:${p.port}</span> ${sslBadge}</td>
+      <td>${protoBadge}</td>
+      <td>${anonBadge}</td>
+      <td>${latBadge}</td>
+      <td>${scoreBar}</td>
+      <td>${uptimeEl}</td>
+      <td><span class="flag">${flag}</span> <span style="color:var(--text-muted);font-size:11px">${p.country_code || '—'}</span></td>
+      <td>
+        <div style="display:flex;gap:5px">
+          <button class="copy-btn" onclick="copyText('${addr}',this)">Copy</button>
+          <button class="copy-btn" onclick="prefillTest('${addr}')">Test</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function sortBy(key) {
+  if (sortKey === key) sortDir *= -1;
+  else { sortKey = key; sortDir = -1; }
+  applySearch();
+}
+
+// ── Activity Feed ──
+function addFeedItem(p) {
+  const feed = document.getElementById('activity-feed');
+  if (firstFeed) { feed.innerHTML = ''; firstFeed = false; }
+  const anonColor = p.anonymity === 'elite' ? '#34d399' : p.anonymity === 'anonymous' ? '#fbbf24' : '#fb7185';
+  const time = new Date().toLocaleTimeString('en', {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const el = document.createElement('div');
+  el.className = 'feed-item';
+  el.innerHTML = `
+    <span class="feed-time">${time}</span>
+    <span class="feed-proxy">${p.ip}:${p.port}</span>
+    <div class="feed-meta">
+      <span class="badge badge-${p.protocol}" style="font-size:10px">${p.protocol.toUpperCase()}</span>
+      <span style="font-size:11px;color:${anonColor}">${p.anonymity}</span>
+      <span style="font-size:11px;color:var(--text-muted)">${p.latency_ms}ms</span>
+      ${p.country_code ? `<span style="font-size:11px;color:var(--text-dim)">${countryFlag(p.country_code)} ${p.country_code}</span>` : ''}
+    </div>`;
+  feed.prepend(el);
+  // Keep max 100 items
+  while (feed.children.length > 100) feed.removeChild(feed.lastChild);
+}
+
+function clearFeed() {
+  document.getElementById('activity-feed').innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-dim);font-size:12px">Cleared.</div>';
+  firstFeed = true;
+}
+
+// ── Proxy Test ──
+async function testProxy() {
+  const input = document.getElementById('test-proxy-input').value.trim();
+  const btn = document.getElementById('test-btn');
+  const result = document.getElementById('test-result');
+  if (!input) return;
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Testing…';
+  result.className = 'test-result visible';
+  result.textContent = 'Checking proxy…';
+  try {
+    const resp = await fetch(`${API}/api/v1/test?proxy=${encodeURIComponent(input)}`);
+    const data = await resp.json();
+    if (data.success) {
+      result.className = 'test-result visible success';
+      result.innerHTML = `✅ <strong>ALIVE</strong>
+Protocol: ${data.protocol} | Latency: ${data.latency_ms}ms | Anonymity: ${data.anonymity}
+Country: ${data.country || '—'} ${countryFlag(data.country_code)} | ASN: ${data.asn || '—'}
+SSL: ${data.ssl ? '🔒 Yes' : 'No'} | Judge confirmed: ${data.judge_count || 1}x`;
+    } else {
+      result.className = 'test-result visible error';
+      result.innerHTML = `❌ <strong>DEAD</strong> — ${(data.error || 'Connection failed').replace(/</g,'&lt;')}`;
+    }
+  } catch(e) {
+    result.className = 'test-result visible error';
+    result.textContent = '❌ Error: ' + e.message;
+  }
+  btn.disabled = false;
+  btn.textContent = '▶ Test Proxy';
+}
+
+function prefillTest(addr) {
+  document.getElementById('test-proxy-input').value = addr;
+  document.getElementById('test-proxy-input').scrollIntoView({ behavior: 'smooth' });
+  document.getElementById('test-proxy-input').focus();
+}
+
+// ── Export ──
+function exportProxies(fmt) {
+  const params = new URLSearchParams({
+    protocol: document.getElementById('f-proto').value,
+    anonymity: document.getElementById('f-anon').value,
+    country: document.getElementById('f-country').value.toUpperCase(),
+    format: fmt
+  });
+  for (const [k, v] of [...params]) { if (!v) params.delete(k); }
+  window.open(`${API}/api/v1/export?${params}`, '_blank');
+}
+
+// ── Helpers ──
+function fmt(n) { return Number(n).toLocaleString(); }
+function pad(n) { return String(n).padStart(2, '0'); }
+
+function animateCounter(id, target) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const current = parseInt(el.textContent.replace(/,/g, '')) || 0;
+  if (current === target) return;
+  el.textContent = fmt(target);
+}
+
+function copyText(text, btn) {
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = '✓';
+    btn.style.color = '#34d399';
+    setTimeout(() => { btn.textContent = orig; btn.style.color = ''; }, 1200);
+  });
+}
+
+function copyAll() {
+  const text = proxies.map(p => `${p.protocol}://${p.ip}:${p.port}`).join('\n');
+  navigator.clipboard.writeText(text).then(() => showToast(`Copied ${proxies.length} proxies`, 'success'));
+}
+
+function resetFilters() {
+  ['f-proto','f-anon'].forEach(id => document.getElementById(id).value = '');
+  ['f-country','f-score','f-latency','f-search'].forEach(id => document.getElementById(id).value = '');
+  loadProxies();
+}
+
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  setTimeout(() => t.className = 'toast ' + type, 2800);
+}
+
+function countryFlag(code) {
+  if (!code || code.length !== 2) return '';
+  try {
+    return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
+  } catch { return ''; }
+}
+
+// ── Search debounce ──
+let searchTimer;
+document.getElementById('f-search').addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(applySearch, 200);
+});
+
+// Enter key test
+document.getElementById('test-proxy-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') testProxy();
+});
+
+// ── Boot ──
+initCharts();
+connectStream();
+loadProxies();
+
+// Auto-refresh table every 30s
+setInterval(loadProxies, 30000);
+</script>
+</body>
+</html>
