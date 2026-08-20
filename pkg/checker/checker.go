@@ -57,8 +57,8 @@ func (c *Checker) CheckIPPort(ctx context.Context, ip string, port int, proto mo
 	// Stage 1: Fast TCP Ping (sub-millisecond pre-filter)
 	if c.config.Protocol.FastFailTCP {
 		timeout := c.config.Engine.ConnectTimeout
-		if timeout > 800*time.Millisecond {
-			timeout = 800 * time.Millisecond
+		if timeout <= 0 {
+			timeout = 1500 * time.Millisecond
 		}
 		if !protocol.FastTCPPing(ctx, addr, timeout) {
 			result.Error = fmt.Errorf("tcp connect timed out")
