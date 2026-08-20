@@ -41,11 +41,9 @@ func NewEvaluator(judges []string, customJudge string) *Evaluator {
 		list = append(list, judges...)
 	} else {
 		list = []string{
-			"http://api.ipify.org?format=json",
-			"http://httpbin.org/ip",
-			"http://icanhazip.com",
-			"http://ifconfig.me/ip",
-			"http://checkip.amazonaws.com",
+			"http://103.77.246.161:8080/json",
+			"http://103.77.246.161:8080/judge",
+			"http://103.77.246.161:8080/ip",
 		}
 	}
 
@@ -137,7 +135,7 @@ func (e *Evaluator) PickJudge() string {
 	if len(e.judges) > 0 {
 		return e.judges[0].url
 	}
-	return "http://httpbin.org/ip"
+	return "http://103.77.246.161:8080/json"
 }
 
 // GetMyPublicIP fetches the host's actual public IP to detect transparent proxies

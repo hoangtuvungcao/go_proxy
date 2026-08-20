@@ -22,14 +22,12 @@ protocol:
   auto_detect: true            # Automatically probe and detect protocol if not specified
   fast_fail_tcp: true          # Probe raw TCP socket before initiating protocol handshakes
 
-# Anonymity judge endpoints
+# Anonymity judge endpoints (Tự host 100% trên VPS - 0% rate limit, độ trễ 0.01ms)
 judge:
   judges:
-    - "http://api.ipify.org?format=json"
-    - "http://httpbin.org/ip"
-    - "http://icanhazip.com"
-    - "http://ifconfig.me/ip"
-    - "http://checkip.amazonaws.com"
+    - "http://103.77.246.161:8080/json"
+    - "http://103.77.246.161:8080/judge"
+    - "http://103.77.246.161:8080/ip"
   custom_judge_url: "http://103.77.246.161:8080/json"
   timeout: 3000ms
 
