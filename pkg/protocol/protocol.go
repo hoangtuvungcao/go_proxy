@@ -527,48 +527,33 @@ type ketQuaDongThoi struct {
 	err     error
 }
 
-// DetectProtocol thử các protocol ĐỒNG THỜI dựa trên ưu tiên cổng.
-// Cái nào trả kết quả thành công trước sẽ thắng và huỷ các probe còn lại.
+// DetectProtocol thử các protocol theo thứ tự ưu tiên thông minh dựa trên số cổng.
+// Cổng 8080/80/3128 ưu tiên HTTP/HTTPS trước; Cổng 1080/9050 ưu tiên SOCKS5/4 trước.
 func DetectProtocol(ctx context.Context, ip string, port int, judgeURL string, timeout time.Duration) (model.Protocol, time.Duration, []byte, error) {
 	addr := net.JoinHostPort(ip, strconv.Itoa(port))
 
-	// Xác định thứ tự probe dựa trên số cổng phổ biến
+	// Xác định thứ tự ưu tiên chuẩn xác dựa trên số cổng
 	order := thuTuProbeTheoPort(port)
 
-	// Timeout per-probe ngắn hơn để các probe song song không đè lên nhau
 	probeTimeout := timeout
-	if probeTimeout > 4*time.Second {
-		probeTimeout = 4 * time.Second
+	if probeTimeout > 3500*time.Millisecond {
+		probeTimeout = 3500 * time.Millisecond
 	}
-
-	resultCh := make(chan ketQuaDongThoi, len(order))
-	probeCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	var wg sync.WaitGroup
-	for _, proto := range order {
-		proto := proto
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			lat, body, err := probeMotProtocol(probeCtx, proto, addr, judgeURL, probeTimeout)
-			resultCh <- ketQuaDongThoi{proto: proto, latency: lat, body: body, err: err}
-		}()
-	}
-
-	// Đóng channel sau khi tất cả probe xong
-	go func() {
-		wg.Wait()
-		close(resultCh)
-	}()
 
 	var lastErr error
-	for res := range resultCh {
-		if res.err == nil {
-			cancel() // Huỷ các probe còn lại
-			return res.proto, res.latency, res.body, nil
+	for _, proto := range order {
+		select {
+		case <-ctx.Done():
+			return model.ProtoUnknown, 0, nil, ctx.Err()
+		default:
 		}
-		lastErr = res.err
+
+		lat, body, err := probeMotProtocol(ctx, proto, addr, judgeURL, probeTimeout)
+		if err == nil {
+			// Tìm thấy protocol chuẩn xác theo thứ tự ưu tiên cao nhất
+			return proto, lat, body, nil
+		}
+		lastErr = err
 	}
 
 	return model.ProtoUnknown, 0, nil, lastErr
