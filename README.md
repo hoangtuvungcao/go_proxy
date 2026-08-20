@@ -103,15 +103,15 @@ goproxy/
 │   ├── server/          # REST API và Web UI
 │   └── storage/         # Lưu trữ SQLite WAL và xuất file đa định dạng
 ├── output/              # Thư mục xuất file (tự động tạo)
-│   ├── alive.txt        # Tất cả proxy sống (protocol://ip:port)
-│   ├── alive_plain.txt  # Dạng ip:port thuần
-│   ├── elite.txt        # Chỉ proxy ẩn danh cao cấp (Elite)
-│   ├── fast.txt         # Proxy có latency < 500ms
-│   ├── high_quality.txt # Proxy có điểm chất lượng >= 80
-│   ├── http.txt         # Proxy HTTP
-│   ├── https.txt        # Proxy HTTPS
-│   ├── socks5.txt       # Proxy SOCKS5
-│   ├── socks5_elite.txt # Proxy SOCKS5 Elite
+│   ├── alive.txt        # Tất cả proxy sống dạng chuẩn (ip:port)
+│   ├── alive_url.txt    # Dạng protocol URL (protocol://ip:port)
+│   ├── elite.txt        # Chỉ proxy ẩn danh cao cấp (Elite, dạng ip:port)
+│   ├── fast.txt         # Proxy có latency < 500ms (ip:port)
+│   ├── high_quality.txt # Proxy có điểm chất lượng >= 80 (ip:port)
+│   ├── http.txt         # Proxy HTTP (ip:port)
+│   ├── https.txt        # Proxy HTTPS (ip:port)
+│   ├── socks5.txt       # Proxy SOCKS5 (ip:port)
+│   ├── socks5_elite.txt # Proxy SOCKS5 Elite (ip:port)
 │   ├── proxies.csv      # Toàn bộ danh sách kèm metadata dạng CSV
 │   ├── proxies.jsonl    # Toàn bộ danh sách dạng JSON Lines
 │   └── countries/       # Phân loại theo quốc gia (VN.txt, US_socks5.txt, ...)
@@ -452,22 +452,22 @@ Thư mục `output/` được tạo tự động khi bắt đầu quét:
 
 ```
 output/
-├── alive.txt           -> Danh sách tất cả proxy sống (protocol://ip:port)
-├── alive_plain.txt     -> Danh sách dạng ip:port thuần
-├── elite.txt           -> Chỉ lưu proxy có độ ẩn danh cao cấp (Elite)
-├── fast.txt            -> Proxy có độ trễ kết nối < 500ms
-├── high_quality.txt    -> Proxy đạt điểm chất lượng >= 80/100
-├── http.txt            -> Danh sách proxy HTTP
-├── https.txt           -> Danh sách proxy HTTPS
-├── socks5.txt          -> Danh sách proxy SOCKS5
-├── socks4.txt          -> Danh sách proxy SOCKS4
-├── socks5_elite.txt    -> Danh sách proxy SOCKS5 Elite
+├── alive.txt           -> Danh sách tất cả proxy sống dạng chuẩn (ip:port)
+├── alive_url.txt       -> Danh sách dạng URL (protocol://ip:port)
+├── elite.txt           -> Chỉ lưu proxy có độ ẩn danh cao cấp (Elite, ip:port)
+├── fast.txt            -> Proxy có độ trễ kết nối < 500ms (ip:port)
+├── high_quality.txt    -> Proxy đạt điểm chất lượng >= 80/100 (ip:port)
+├── http.txt            -> Danh sách proxy HTTP (ip:port)
+├── https.txt           -> Danh sách proxy HTTPS (ip:port)
+├── socks5.txt          -> Danh sách proxy SOCKS5 (ip:port)
+├── socks4.txt          -> Danh sách proxy SOCKS4 (ip:port)
+├── socks5_elite.txt    -> Danh sách proxy SOCKS5 Elite (ip:port)
 ├── proxies.jsonl       -> Danh sách dạng JSON Lines (khi bật save_json)
 ├── proxies.csv         -> Danh sách dạng CSV kèm metadata đầy đủ (khi bật save_csv)
 └── countries/
-    ├── VN.txt          -> Proxy thuộc vị trí Việt Nam
-    ├── CN.txt          -> Proxy thuộc vị trí Trung Quốc
-    ├── VN_socks5.txt   -> Proxy SOCKS5 thuộc vị trí Việt Nam
+    ├── VN.txt          -> Proxy thuộc vị trí Việt Nam (ip:port)
+    ├── CN.txt          -> Proxy thuộc vị trí Trung Quốc (ip:port)
+    ├── VN_socks5.txt   -> Proxy SOCKS5 thuộc vị trí Việt Nam (ip:port)
     └── ...
 ```
 

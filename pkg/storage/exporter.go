@@ -79,11 +79,11 @@ func (e *Exporter) WriteAlive(p *model.Proxy) {
 	addr := p.Address()
 	urlStr := p.URLString()
 
-	// 1. File tổng hợp tất cả proxy sống
-	e.appendLine("alive.txt", urlStr)
-	e.appendLine("alive_plain.txt", addr)
+	// 1. File tổng hợp tất cả proxy sống (dạng IP:PORT chuẩn)
+	e.appendLine("alive.txt", addr)
+	e.appendLine("alive_url.txt", urlStr)
 
-	// 2. Phân loại theo giao thức
+	// 2. Phân loại theo giao thức (dạng IP:PORT)
 	if e.splitByType {
 		protoFile := fmt.Sprintf("%s.txt", p.Protocol)
 		e.appendLine(protoFile, addr)
@@ -91,18 +91,18 @@ func (e *Exporter) WriteAlive(p *model.Proxy) {
 
 	// 3. File proxy ẩn danh cao cấp (Elite)
 	if p.Anonymity == model.AnonElite {
-		e.appendLine("elite.txt", urlStr)
+		e.appendLine("elite.txt", addr)
 		if p.Protocol == model.ProtoSOCKS5 {
-			e.appendLine("socks5_elite.txt", urlStr)
+			e.appendLine("socks5_elite.txt", addr)
 		}
 	}
 
 	// 4. File proxy nhanh (< 500ms) và chất lượng cao (Score >= 80)
 	if p.LatencyMs > 0 && p.LatencyMs <= 500 {
-		e.appendLine("fast.txt", urlStr)
+		e.appendLine("fast.txt", addr)
 	}
 	if p.Score >= 80 {
-		e.appendLine("high_quality.txt", urlStr)
+		e.appendLine("high_quality.txt", addr)
 	}
 
 	// 5. Phân loại theo quốc gia (output/countries/VN.txt, output/countries/VN_socks5.txt)
@@ -189,8 +189,8 @@ func (e *Exporter) SyncAliveFiles(proxies []*model.Proxy) error {
 		addr := p.Address()
 		urlStr := p.URLString()
 
-		linesByFile["alive.txt"] = append(linesByFile["alive.txt"], urlStr)
-		linesByFile["alive_plain.txt"] = append(linesByFile["alive_plain.txt"], addr)
+		linesByFile["alive.txt"] = append(linesByFile["alive.txt"], addr)
+		linesByFile["alive_url.txt"] = append(linesByFile["alive_url.txt"], urlStr)
 
 		if e.splitByType {
 			protoFile := fmt.Sprintf("%s.txt", p.Protocol)
@@ -198,17 +198,17 @@ func (e *Exporter) SyncAliveFiles(proxies []*model.Proxy) error {
 		}
 
 		if p.Anonymity == model.AnonElite {
-			linesByFile["elite.txt"] = append(linesByFile["elite.txt"], urlStr)
+			linesByFile["elite.txt"] = append(linesByFile["elite.txt"], addr)
 			if p.Protocol == model.ProtoSOCKS5 {
-				linesByFile["socks5_elite.txt"] = append(linesByFile["socks5_elite.txt"], urlStr)
+				linesByFile["socks5_elite.txt"] = append(linesByFile["socks5_elite.txt"], addr)
 			}
 		}
 
 		if p.LatencyMs > 0 && p.LatencyMs <= 500 {
-			linesByFile["fast.txt"] = append(linesByFile["fast.txt"], urlStr)
+			linesByFile["fast.txt"] = append(linesByFile["fast.txt"], addr)
 		}
 		if p.Score >= 80 {
-			linesByFile["high_quality.txt"] = append(linesByFile["high_quality.txt"], urlStr)
+			linesByFile["high_quality.txt"] = append(linesByFile["high_quality.txt"], addr)
 		}
 
 		if e.splitByCountry && p.CountryCode != "" && p.CountryCode != "XX" {
