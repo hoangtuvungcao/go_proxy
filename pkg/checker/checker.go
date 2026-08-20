@@ -6,7 +6,9 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"goproxy/pkg/geoip"
@@ -104,7 +106,8 @@ func (c *Checker) CheckIPPort(ctx context.Context, ip string, port int, proto mo
 			result.Anonymity = c.judge.EvaluateAnonymity(hdrs, body)
 
 		case model.ProtoHTTPS:
-			latency, err = protocol.CheckHTTPS(ctx, addr, "", reqTimeout)
+			targetHost := c.getTargetHost()
+			latency, err = protocol.CheckHTTPS(ctx, addr, targetHost, reqTimeout)
 			if err != nil {
 				result.Error = err
 				return result
@@ -230,4 +233,21 @@ func CalculateScore(p *model.Proxy) int {
 		score = 0
 	}
 	return int(math.Round(score))
+}
+
+// getTargetHost trích xuất domain:port từ cấu hình target.url trong config.yaml
+func (c *Checker) getTargetHost() string {
+	if c.config != nil && c.config.Target.URL != "" {
+		u, err := url.Parse(c.config.Target.URL)
+		if err == nil && u.Host != "" {
+			if !strings.Contains(u.Host, ":") {
+				if u.Scheme == "http" {
+					return u.Host + ":80"
+				}
+				return u.Host + ":443"
+			}
+			return u.Host
+		}
+	}
+	return "www.google.com:443"
 }

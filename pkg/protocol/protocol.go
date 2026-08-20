@@ -241,7 +241,7 @@ func CheckHTTPS(ctx context.Context, proxyAddr string, targetHost string, timeou
 	_ = conn.SetDeadline(time.Now().Add(timeout))
 
 	if targetHost == "" {
-		targetHost = "api.ipify.org:443"
+		targetHost = "www.google.com:443"
 	}
 	if !strings.Contains(targetHost, ":") {
 		targetHost = targetHost + ":443"
@@ -269,7 +269,7 @@ func CheckHTTPS(ctx context.Context, proxyAddr string, targetHost string, timeou
 		return 0, fmt.Errorf("CONNECT bị từ chối với status: %d", resp.StatusCode)
 	}
 
-	// Bắt tay TLS qua tunnel vừa thiết lập với chứng chỉ thật
+	// Bắt tay TLS qua tunnel vừa thiết lập
 	hostOnly, _, _ := net.SplitHostPort(targetHost)
 	tlsConfig := &tls.Config{
 		ServerName:         hostOnly,
@@ -285,8 +285,8 @@ func CheckHTTPS(ctx context.Context, proxyAddr string, targetHost string, timeou
 		return 0, fmt.Errorf("TLS handshake thất bại: %w", err)
 	}
 
-	// Xác minh truyền tải dữ liệu thực tế qua TLS tunnel
-	probeReq := fmt.Sprintf("GET /?format=json HTTP/1.1\r\nHost: %s\r\nUser-Agent: GoProxy/2.0\r\nConnection: close\r\n\r\n", hostOnly)
+	// Xác minh truyền tải dữ liệu thực tế qua TLS tunnel tới Google
+	probeReq := fmt.Sprintf("GET / HTTP/1.1\r\nHost: %s\r\nUser-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\r\nConnection: close\r\n\r\n", hostOnly)
 	if _, err := tlsConn.Write([]byte(probeReq)); err != nil {
 		return 0, fmt.Errorf("gửi probe qua TLS thất bại: %w", err)
 	}
@@ -296,7 +296,8 @@ func CheckHTTPS(ctx context.Context, proxyAddr string, targetHost string, timeou
 		return 0, fmt.Errorf("đọc phản hồi qua TLS thất bại: %w", err)
 	}
 	_ = tlsResp.Body.Close()
-	if tlsResp.StatusCode != http.StatusOK {
+	// Google có thể trả về 200 OK hoặc 301/302 chuyển hướng khu vực -> đều là proxy hoạt động hoàn hảo
+	if tlsResp.StatusCode < 200 || tlsResp.StatusCode >= 400 {
 		return 0, fmt.Errorf("TLS target trả về status: %d", tlsResp.StatusCode)
 	}
 
