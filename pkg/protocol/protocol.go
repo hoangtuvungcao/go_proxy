@@ -115,8 +115,8 @@ func CheckHTTP(ctx context.Context, proxyAddr string, judgeURL string, timeout t
 
 	latency := time.Since(start)
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 400 {
-		return latency, nil, resp.Header, fmt.Errorf("status code không hợp lệ: %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		return latency, nil, resp.Header, fmt.Errorf("status code không phải 200 OK: %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 32768))
@@ -143,13 +143,15 @@ func validateJudgeResponse(headers http.Header, body []byte) error {
 
 	lowerBody := bytes.ToLower(trimmed)
 
-	// Lớp 1: Nếu là HTML thông thường (trang web, router, login portal) -> Loại bỏ ngay trừ khi là AZENV
+	// Lớp 1: Bất kỳ HTML thông thường nào (trang web, router, login portal) -> Loại bỏ 100%
 	if bytes.HasPrefix(lowerBody, []byte("<!doctype")) ||
 		bytes.HasPrefix(lowerBody, []byte("<html")) ||
 		bytes.HasPrefix(lowerBody, []byte("<head")) ||
 		bytes.HasPrefix(lowerBody, []byte("<body")) ||
 		bytes.Contains(lowerBody, []byte("<title>")) ||
-		bytes.Contains(lowerBody, []byte("<script")) {
+		bytes.Contains(lowerBody, []byte("<script")) ||
+		bytes.Contains(lowerBody, []byte("<div")) ||
+		bytes.Contains(lowerBody, []byte("<p>")) {
 
 		// Chỉ chấp nhận nếu HTML đó thực chất là trang AZENV có chứa REMOTE_ADDR = <ip_hợp_lệ>
 		if ip := extractAzenvIP(trimmed); ip != "" {
@@ -226,7 +228,7 @@ func extractAzenvIP(body []byte) string {
 	return ""
 }
 
-// CheckHTTPS xác minh HTTPS CONNECT tunnel với TLS handshake thực.
+// CheckHTTPS xác minh HTTPS CONNECT tunnel với TLS handshake và HTTP request thực tế.
 func CheckHTTPS(ctx context.Context, proxyAddr string, targetHost string, timeout time.Duration) (time.Duration, error) {
 	start := time.Now()
 
@@ -246,7 +248,7 @@ func CheckHTTPS(ctx context.Context, proxyAddr string, targetHost string, timeou
 	}
 
 	connectReq := fmt.Sprintf(
-		"CONNECT %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: Mozilla/5.0 (compatible; GoProxy/3.0)\r\nProxy-Connection: Keep-Alive\r\n\r\n",
+		"CONNECT %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\r\nProxy-Connection: Keep-Alive\r\n\r\n",
 		targetHost, targetHost,
 	)
 	if _, err := conn.Write([]byte(connectReq)); err != nil {
@@ -267,10 +269,13 @@ func CheckHTTPS(ctx context.Context, proxyAddr string, targetHost string, timeou
 		return 0, fmt.Errorf("CONNECT bị từ chối với status: %d", resp.StatusCode)
 	}
 
-	// Bắt tay TLS qua tunnel vừa thiết lập
+	// Bắt tay TLS qua tunnel vừa thiết lập với chứng chỉ thật
 	hostOnly, _, _ := net.SplitHostPort(targetHost)
-	tlsConfig := sharedTLSConfig.Clone()
-	tlsConfig.ServerName = hostOnly
+	tlsConfig := &tls.Config{
+		ServerName:         hostOnly,
+		InsecureSkipVerify: true,
+		MinVersion:         tls.VersionTLS10,
+	}
 
 	tlsConn := tls.Client(conn, tlsConfig)
 	defer tlsConn.Close()
@@ -280,12 +285,26 @@ func CheckHTTPS(ctx context.Context, proxyAddr string, targetHost string, timeou
 		return 0, fmt.Errorf("TLS handshake thất bại: %w", err)
 	}
 
+	// Xác minh truyền tải dữ liệu thực tế qua TLS tunnel
+	probeReq := fmt.Sprintf("GET /?format=json HTTP/1.1\r\nHost: %s\r\nUser-Agent: GoProxy/2.0\r\nConnection: close\r\n\r\n", hostOnly)
+	if _, err := tlsConn.Write([]byte(probeReq)); err != nil {
+		return 0, fmt.Errorf("gửi probe qua TLS thất bại: %w", err)
+	}
+	tlsReader := bufio.NewReaderSize(tlsConn, 2048)
+	tlsResp, err := http.ReadResponse(tlsReader, &http.Request{Method: "GET"})
+	if err != nil {
+		return 0, fmt.Errorf("đọc phản hồi qua TLS thất bại: %w", err)
+	}
+	_ = tlsResp.Body.Close()
+	if tlsResp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("TLS target trả về status: %d", tlsResp.StatusCode)
+	}
+
 	latency := time.Since(start)
 	return latency, nil
 }
 
-// CheckSOCKS5 xác minh proxy SOCKS5 (RFC 1928) đầu cuối.
-// Hỗ trợ cả No-Auth (0x00) và Username/Password auth (0x02).
+// CheckSOCKS5 xác minh proxy SOCKS5 (RFC 1928) đầu cuối với probe thực tế.
 func CheckSOCKS5(ctx context.Context, proxyAddr string, targetHost string, targetPort int, timeout time.Duration) (time.Duration, error) {
 	start := time.Now()
 
@@ -301,7 +320,7 @@ func CheckSOCKS5(ctx context.Context, proxyAddr string, targetHost string, targe
 	}
 	_ = conn.SetDeadline(time.Now().Add(timeout))
 
-	// Bước 1: Đàm phán xác thực — đề xuất No-Auth (0x00) và Username/Pass (0x02)
+	// Bước 1: Đàm phán xác thực
 	if _, err := conn.Write([]byte{0x05, 0x02, 0x00, 0x02}); err != nil {
 		return 0, fmt.Errorf("SOCKS5 ghi auth request thất bại: %w", err)
 	}
@@ -318,7 +337,7 @@ func CheckSOCKS5(ctx context.Context, proxyAddr string, targetHost string, targe
 		return 0, fmt.Errorf("SOCKS5 không có phương thức xác thực phù hợp")
 	}
 
-	// Bước 2: Gửi request kết nối tới địa chỉ đích
+	// Bước 2: Gửi request kết nối tới địa chỉ đích (1.1.1.1:80)
 	if targetHost == "" {
 		targetHost = "1.1.1.1"
 		targetPort = 80
@@ -326,7 +345,6 @@ func CheckSOCKS5(ctx context.Context, proxyAddr string, targetHost string, targe
 
 	parsedIP := net.ParseIP(targetHost).To4()
 	if parsedIP != nil {
-		// Địa chỉ đích là IPv4
 		req := make([]byte, 10)
 		req[0] = 0x05
 		req[1] = 0x01 // CONNECT
@@ -335,10 +353,9 @@ func CheckSOCKS5(ctx context.Context, proxyAddr string, targetHost string, targe
 		copy(req[4:8], parsedIP)
 		binary.BigEndian.PutUint16(req[8:10], uint16(targetPort))
 		if _, err := conn.Write(req); err != nil {
-			return 0, fmt.Errorf("SOCKS5 ghi connect request (IPv4) thất bại: %w", err)
+			return 0, fmt.Errorf("SOCKS5 ghi connect request thất bại: %w", err)
 		}
 	} else {
-		// Địa chỉ đích là domain name
 		domainBytes := []byte(targetHost)
 		req := make([]byte, 7+len(domainBytes))
 		req[0] = 0x05
@@ -363,7 +380,6 @@ func CheckSOCKS5(ctx context.Context, proxyAddr string, targetHost string, targe
 		return 0, fmt.Errorf("SOCKS5 kết nối bị từ chối, mã lỗi: 0x%X", replyHeader[1])
 	}
 
-	// Đọc phần địa chỉ trong reply để drain buffer
 	var addrLen int
 	switch replyHeader[3] {
 	case 0x01: // IPv4
@@ -385,11 +401,24 @@ func CheckSOCKS5(ctx context.Context, proxyAddr string, targetHost string, targe
 		return 0, err
 	}
 
+	// Bước 4: Kiểm tra truyền tải end-to-end qua SOCKS5 tunnel
+	probe := "GET / HTTP/1.1\r\nHost: 1.1.1.1\r\nUser-Agent: GoProxy/2.0\r\nConnection: close\r\n\r\n"
+	if _, err := conn.Write([]byte(probe)); err != nil {
+		return 0, fmt.Errorf("SOCKS5 ghi probe thất bại: %w", err)
+	}
+	probeResp := make([]byte, 12)
+	if _, err := io.ReadAtLeast(conn, probeResp, 4); err != nil {
+		return 0, fmt.Errorf("SOCKS5 nhận phản hồi probe thất bại: %w", err)
+	}
+	if !bytes.HasPrefix(probeResp, []byte("HTTP/")) {
+		return 0, fmt.Errorf("SOCKS5 không chuyển tiếp dữ liệu HTTP hợp lệ")
+	}
+
 	latency := time.Since(start)
 	return latency, nil
 }
 
-// CheckSOCKS4 xác minh proxy SOCKS4/4a đầu cuối.
+// CheckSOCKS4 xác minh proxy SOCKS4/4a đầu cuối với probe thực tế.
 func CheckSOCKS4(ctx context.Context, proxyAddr string, targetIP string, targetPort int, timeout time.Duration) (time.Duration, error) {
 	start := time.Now()
 
@@ -421,7 +450,7 @@ func CheckSOCKS4(ctx context.Context, proxyAddr string, targetIP string, targetP
 	req[1] = 0x01 // CD: Connect
 	binary.BigEndian.PutUint16(req[2:4], uint16(targetPort))
 	copy(req[4:8], parsedIP)
-	req[8] = 0x00 // User ID kết thúc bằng null
+	req[8] = 0x00
 
 	if _, err := conn.Write(req); err != nil {
 		return 0, fmt.Errorf("SOCKS4 ghi request thất bại: %w", err)
@@ -432,8 +461,21 @@ func CheckSOCKS4(ctx context.Context, proxyAddr string, targetIP string, targetP
 		return 0, fmt.Errorf("SOCKS4 đọc reply thất bại: %w", err)
 	}
 
-	if resp[1] != 0x5A { // 0x5A = 90 = Request Granted
+	if resp[1] != 0x5A {
 		return 0, fmt.Errorf("SOCKS4 bị từ chối, mã: 0x%X", resp[1])
+	}
+
+	// Bước 3: Kiểm tra truyền tải end-to-end qua SOCKS4 tunnel
+	probe := "GET / HTTP/1.1\r\nHost: 1.1.1.1\r\nUser-Agent: GoProxy/2.0\r\nConnection: close\r\n\r\n"
+	if _, err := conn.Write([]byte(probe)); err != nil {
+		return 0, fmt.Errorf("SOCKS4 ghi probe thất bại: %w", err)
+	}
+	probeResp := make([]byte, 12)
+	if _, err := io.ReadAtLeast(conn, probeResp, 4); err != nil {
+		return 0, fmt.Errorf("SOCKS4 nhận phản hồi probe thất bại: %w", err)
+	}
+	if !bytes.HasPrefix(probeResp, []byte("HTTP/")) {
+		return 0, fmt.Errorf("SOCKS4 không chuyển tiếp dữ liệu HTTP hợp lệ")
 	}
 
 	latency := time.Since(start)

@@ -29,10 +29,10 @@ judge:
     - "http://httpbin.org/ip"
     - "https://ifconfig.me/ip"
     - "https://api.myip.com"
-  custom_judge_url: ""         # Example: "http://your-vps-ip:8000/json"
+  custom_judge_url: "http://103.77.246.161:8000/json"         # Example: "http://your-vps-ip:8000/json"
   timeout: 3000ms
 
-# Real-world target verification (optional)
+# Real-world target verification (option161al)
 target:
   enabled: false
   url: "https://www.google.com"
