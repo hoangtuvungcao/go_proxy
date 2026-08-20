@@ -133,12 +133,22 @@ func CheckHTTP(ctx context.Context, proxyAddr string, judgeURL string, timeout t
 }
 
 // validateJudgeResponse xác thực nghiêm ngặt phản hồi từ Judge.
-// CHỈ CHẤP NHẬN nếu Judge trả về địa chỉ IP thực tế (JSON IP echo hoặc plain text IP hoặc AZENV).
-// Toàn bộ các trang web thông thường, Router MikroTik/TP-Link, 404/Login page đều bị loại bỏ 100%.
+// CHỈ CHẤP NHẬN nếu Judge trả về địa chỉ Public IP thực tế (JSON IP echo hoặc plain text IP hoặc AZENV).
+// Toàn bộ các trang web thông thường, Router MikroTik/TP-Link, Laravel/PHP session, 127.0.0.1 đều bị loại bỏ 100%.
 func validateJudgeResponse(headers http.Header, body []byte) error {
 	trimmed := bytes.TrimSpace(body)
 	if len(trimmed) < 4 {
 		return fmt.Errorf("false positive: body quá ngắn (%d bytes)", len(trimmed))
+	}
+
+	// Lớp 0: Nếu server trả về Cookie xác thực/Session của trang web (Laravel, PHP, Django, Spring) -> Loại bỏ ngay
+	if cookie := headers.Get("Set-Cookie"); cookie != "" {
+		lcookie := strings.ToLower(cookie)
+		if strings.Contains(lcookie, "session") || strings.Contains(lcookie, "xsrf") ||
+			strings.Contains(lcookie, "token") || strings.Contains(lcookie, "phpsessid") ||
+			strings.Contains(lcookie, "laravel") || strings.Contains(lcookie, "asp.net") {
+			return fmt.Errorf("false positive: phát hiện web session cookie (%s) từ website thường", cookie)
+		}
 	}
 
 	lowerBody := bytes.ToLower(trimmed)
@@ -150,10 +160,11 @@ func validateJudgeResponse(headers http.Header, body []byte) error {
 		bytes.HasPrefix(lowerBody, []byte("<body")) ||
 		bytes.Contains(lowerBody, []byte("<title>")) ||
 		bytes.Contains(lowerBody, []byte("<script")) ||
+		bytes.Contains(lowerBody, []byte("<style")) ||
 		bytes.Contains(lowerBody, []byte("<div")) ||
 		bytes.Contains(lowerBody, []byte("<p>")) {
 
-		// Chỉ chấp nhận nếu HTML đó thực chất là trang AZENV có chứa REMOTE_ADDR = <ip_hợp_lệ>
+		// Chỉ chấp nhận nếu HTML đó thực chất là trang AZENV có chứa REMOTE_ADDR = <public_ip>
 		if ip := extractAzenvIP(trimmed); ip != "" {
 			return nil
 		}
@@ -172,8 +183,9 @@ func validateJudgeResponse(headers http.Header, body []byte) error {
 				}
 			}
 			ip = strings.TrimSpace(ip)
-			if ip != "" && net.ParseIP(ip) != nil {
-				// JSON chứa IP echo hợp lệ
+			parsed := net.ParseIP(ip)
+			if isPublicIP(parsed) {
+				// ✅ JSON chứa Public IP echo hợp lệ
 				return nil
 			}
 		}
@@ -185,7 +197,8 @@ func validateJudgeResponse(headers http.Header, body []byte) error {
 				if val, exists := genericMap[k]; exists {
 					if strVal, ok := val.(string); ok {
 						strVal = strings.TrimSpace(strVal)
-						if net.ParseIP(strVal) != nil {
+						parsed := net.ParseIP(strVal)
+						if isPublicIP(parsed) {
 							return nil
 						}
 					}
@@ -196,8 +209,9 @@ func validateJudgeResponse(headers http.Header, body []byte) error {
 
 	// Lớp 3: Thử parse dạng plain text IP (chuẩn ifconfig.me/ip, icanhazip.com, api.ipify.org)
 	strBody := strings.Trim(string(trimmed), "\"'\r\n\t ")
-	if net.ParseIP(strBody) != nil {
-		// Trả về đúng 1 địa chỉ IP hợp lệ
+	parsed := net.ParseIP(strBody)
+	if isPublicIP(parsed) {
+		// ✅ Trả về đúng 1 địa chỉ Public IP hợp lệ
 		return nil
 	}
 
@@ -206,10 +220,21 @@ func validateJudgeResponse(headers http.Header, body []byte) error {
 		return nil
 	}
 
-	return fmt.Errorf("false positive: phản hồi không chứa IP echo hợp lệ từ judge")
+	return fmt.Errorf("false positive: phản hồi không chứa Public IP echo hợp lệ từ judge")
 }
 
-// extractAzenvIP trích xuất và xác thực IP từ dữ liệu AZENV
+// isPublicIP kiểm tra xem IP có phải là IP Internet công cộng không (loại bỏ 127.0.0.1, 0.0.0.0, dải private)
+func isPublicIP(ip net.IP) bool {
+	if ip == nil {
+		return false
+	}
+	if ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() || ip.IsMulticast() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		return false
+	}
+	return true
+}
+
+// extractAzenvIP trích xuất và xác thực Public IP từ dữ liệu AZENV
 func extractAzenvIP(body []byte) string {
 	lines := strings.Split(string(body), "\n")
 	for _, l := range lines {
@@ -219,7 +244,8 @@ func extractAzenvIP(body []byte) string {
 			if len(parts) == 2 {
 				ipStr := strings.TrimSpace(parts[1])
 				ipStr = strings.Trim(ipStr, "\"' \r\t")
-				if net.ParseIP(ipStr) != nil {
+				parsed := net.ParseIP(ipStr)
+				if isPublicIP(parsed) {
 					return ipStr
 				}
 			}
