@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -37,19 +38,28 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "Config file (default: configs/config.yaml)")
 }
 
+var loadedConfigFile string
+
 func initConfig() {
 	globalConfig = model.DefaultConfig()
 
+	candidates := []string{}
 	if cfgFile != "" {
-		data, err := os.ReadFile(cfgFile)
-		if err == nil {
-			_ = yaml.Unmarshal(data, globalConfig)
-		}
+		candidates = append(candidates, cfgFile)
 	} else {
-		// Try default config file path
-		data, err := os.ReadFile("configs/config.yaml")
-		if err == nil {
-			_ = yaml.Unmarshal(data, globalConfig)
+		candidates = append(candidates, "configs/config.yaml", "config.yaml")
+		if execPath, err := os.Executable(); err == nil {
+			execDir := filepath.Dir(execPath)
+			candidates = append(candidates, filepath.Join(execDir, "configs", "config.yaml"), filepath.Join(execDir, "config.yaml"))
+		}
+	}
+
+	for _, p := range candidates {
+		if data, err := os.ReadFile(p); err == nil {
+			if err := yaml.Unmarshal(data, globalConfig); err == nil {
+				loadedConfigFile = p
+				break
+			}
 		}
 	}
 }
@@ -60,6 +70,11 @@ func GetConfig() *model.Config {
 		globalConfig = model.DefaultConfig()
 	}
 	return globalConfig
+}
+
+// GetLoadedConfigFile returns the path of the loaded config file, if any
+func GetLoadedConfigFile() string {
+	return loadedConfigFile
 }
 
 // ShowBanner displays the startup ASCII art

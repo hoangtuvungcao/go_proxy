@@ -70,16 +70,29 @@ func runCheck(cmd *cobra.Command, args []string) {
 	ShowBanner()
 	cfg := GetConfig()
 
-	// Apply CLI overrides
-	if workersFlag > 0 {
+	if loadedPath := GetLoadedConfigFile(); loadedPath != "" {
+		color.New(color.FgHiGreen).Printf("[*] Đã nạp cấu hình từ: %s\n", loadedPath)
+	}
+
+	// Áp dụng cờ lệnh CLI CHỈ KHI người dùng nhập tường minh trên dòng lệnh
+	if cmd.Flags().Changed("workers") {
 		cfg.Engine.Workers = workersFlag
 	}
-	if timeoutFlag > 0 {
+	if cmd.Flags().Changed("timeout") {
 		cfg.Engine.ConnectTimeout = timeoutFlag
 		cfg.Engine.ReadWriteTimeout = timeoutFlag
 	}
-	if outputDir != "" {
+	if cmd.Flags().Changed("output") {
 		cfg.Storage.OutputDir = outputDir
+	}
+	if cmd.Flags().Changed("port") {
+		cfg.Engine.AutoPort = portFlag
+	}
+	if cmd.Flags().Changed("protocol") {
+		if protoFlag != "auto" {
+			cfg.Protocol.Protocols = []model.Protocol{model.Protocol(protoFlag)}
+			cfg.Protocol.AutoDetect = false
+		}
 	}
 
 	// Setup SQLite
