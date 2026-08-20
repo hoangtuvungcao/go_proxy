@@ -293,12 +293,12 @@ func CheckHTTPS(ctx context.Context, proxyAddr string, targetHost string, timeou
 		return 0, fmt.Errorf("CONNECT bị từ chối với status: %d", resp.StatusCode)
 	}
 
-	// Bắt tay TLS qua tunnel vừa thiết lập
+	// Bắt tay TLS qua tunnel vừa thiết lập - BẮT BUỘC kiểm tra chứng chỉ xịn để diệt firewall MITM (Palo Alto, Fortinet)
 	hostOnly, _, _ := net.SplitHostPort(targetHost)
 	tlsConfig := &tls.Config{
 		ServerName:         hostOnly,
-		InsecureSkipVerify: true,
-		MinVersion:         tls.VersionTLS10,
+		InsecureSkipVerify: false,
+		MinVersion:         tls.VersionTLS12,
 	}
 
 	tlsConn := tls.Client(conn, tlsConfig)
